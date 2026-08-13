@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "ts-node packages/bot/src/index.ts",
+  "dev": "ts-node packages/bot/index.ts",
   "build": "tsc",
-  "start": "npx ts-node --transpile-only packages/bot/src/index.ts"
+  "start": "node -r ts-node/register packages/bot/index.ts"
   },
   "keywords": [],
   "author": "",

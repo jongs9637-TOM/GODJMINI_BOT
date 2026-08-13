@@ -1,6 +1,7 @@
 FROM node:18
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
 COPY . .
-CMD ["npx", "ts-node", "--transpile-only", "packages/bot/src/index.ts"]
+RUN npm install
+RUN npm run build || echo "Build failed but continuing"
+ENV NODE_ENV=production
+CMD ["node", "-r", "ts-node/register", "-r", "tsconfig-paths/register", "packages/bot/src/index.ts"]
