@@ -1,14 +1,5 @@
 FROM node:18
-
 WORKDIR /app
-
-COPY package*.json ./
-RUN npm install --production=false
-
 COPY . .
-
-RUN npm run build
-
-ENV NODE_ENV=production
-
+RUN npm install
 CMD ["npx", "ts-node", "--transpile-only", "packages/bot/src/index.ts"]
