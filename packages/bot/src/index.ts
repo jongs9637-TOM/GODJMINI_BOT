@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 import { ContentAgent } from './agents/content.agent';
 import { TelegramService } from './services/telegram.service';
-import { supabase, testConnection, savePost } from '../shared/utils/supabase';
+import { supabase, testConnection, savePost } from '../../shared/src/utils/supabase';
 
 dotenv.config({ path: '../../.env' });
 dotenv.config({ path: '.env' });
