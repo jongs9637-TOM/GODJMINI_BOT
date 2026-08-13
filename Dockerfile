@@ -3,12 +3,12 @@ FROM node:18
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --production=false
 
 COPY . .
 
-RUN npm run build || true
+RUN npm run build
 
 ENV NODE_ENV=production
 
-CMD ["npx", "ts-node", "--transpile-only", "packages/bot/src/index.ts"]
+CMD ["node", "dist/packages/bot/src/index.js"]
