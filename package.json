@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node packages/bot/src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
+  "dev": "ts-node packages/bot/src/index.ts",
+  "build": "tsc",
+  "start": "node -r dotenv/config dist/packages/bot/src/index.js"
   },
   "keywords": [],
   "author": "",

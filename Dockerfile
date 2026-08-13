@@ -1,18 +1,14 @@
-FROM node:18-alpine
+FROM node:18
 
 WORKDIR /app
 
-# 의존성 먼저 설치
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
-# 코드 복사
 COPY . .
 
-# 빌드
-RUN npm run build 2>/dev/null || true
+RUN npm run build || true
 
 ENV NODE_ENV=production
 
-# 실행
-CMD ["npx", "ts-node", "--transpile-only", "packages/bot/src/index.ts"]
+CMD ["npm", "start"]
