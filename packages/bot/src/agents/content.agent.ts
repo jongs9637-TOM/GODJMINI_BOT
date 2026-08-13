@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 export class ContentAgent {
   private client: Anthropic;
-  private model: string = 'claude-3-5-sonnet';
+  private model: string = 'claude-sonnet-5';
 
   constructor(apiKey: string) {
     if (!apiKey) {
@@ -34,9 +34,8 @@ export class ContentAgent {
         ],
       });
 
-      const content = response.content[0].type === 'text'
-        ? response.content[0].text
-        : '';
+      const textBlock = response.content.find(block => block.type === 'text');
+      const content = textBlock?.type === 'text' ? textBlock.text : '';
 
       console.log('✅ 콘텐츠 생성 완료');
       return content;
