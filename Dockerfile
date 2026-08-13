@@ -11,4 +11,4 @@ RUN npm run build || true
 
 ENV NODE_ENV=production
 
-CMD ["npm", "start"]
+CMD ["npx", "ts-node", "--transpile-only", "packages/bot/src/index.ts"]
