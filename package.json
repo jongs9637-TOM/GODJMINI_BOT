@@ -6,7 +6,7 @@
   "scripts": {
   "dev": "ts-node packages/bot/src/index.ts",
   "build": "tsc",
-  "start": "node -r dotenv/config dist/bot/src/index.js"
+  "start": "npx ts-node --transpile-only packages/bot/src/index.ts"
   },
   "keywords": [],
   "author": "",
