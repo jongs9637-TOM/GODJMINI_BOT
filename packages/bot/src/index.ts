@@ -8,8 +8,10 @@ import {
   testConnection,
   savePost,
   updatePostStatus,
+  logActivity,
 } from '../../shared/src/utils/supabase';
 import { startDashboardServer } from './server';
+import { isAutomationPaused } from './dashboard/state';
 
 dotenv.config({ path: '../../.env' });
 dotenv.config({ path: '.env' });
@@ -32,6 +34,11 @@ let contentAgent: ContentAgent;
 let publisher: PublisherAgent;
 
 async function generateAndSaveContent() {
+  if (isAutomationPaused()) {
+    console.log('\n⏸️ 자동화가 일시정지 상태라 이번 실행은 건너뜁니다.');
+    return;
+  }
+
   const topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
   console.log(`\n📝 주제: ${topic}`);
 
@@ -50,16 +57,19 @@ async function generateAndSaveContent() {
     });
 
     if (error) throw error;
+    await logActivity('1', 'content_generated', String(post.id));
 
     console.log('✅ 저장 완료, Threads 게시 시도 중...');
     const result = await publisher.publish(content);
 
     if (result.success) {
       await updatePostStatus(post.id, 'posted');
+      await logActivity('1', 'threads_posted', String(post.id));
       console.log('✅ Threads 게시 완료');
       await telegram.notifySuccess(`Threads에 게시 완료: "${topic}"`);
     } else {
       await updatePostStatus(post.id, 'failed', result.error);
+      await logActivity('1', 'threads_post_failed', String(post.id), result.error);
       console.error(`❌ Threads 게시 실패: ${result.error}`);
       await telegram.notifyError(`Threads 게시 실패: ${result.error}`);
     }
@@ -128,6 +138,7 @@ async function main() {
       process.env.TELEGRAM_CHAT_ID!
     );
     await telegram.notifyStart();
+    await logActivity('1', 'bot_start');
     console.log('✅ Telegram Bot 준비 완료\n');
 
     console.log('4️⃣ ContentAgent 초기화...');

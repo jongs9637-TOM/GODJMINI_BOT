@@ -1,5 +1,17 @@
 import * as http from 'http';
-import { supabase } from '../../shared/src/utils/supabase';
+import { logActivity } from '../../shared/src/utils/supabase';
+import { renderShell, NavKey } from './dashboard/layout';
+import {
+  renderDashboardBody,
+  renderContentBody,
+  renderActivityBody,
+  renderConnectionBody,
+  commentsStub,
+  analyticsStub,
+  settingsStub,
+  backupStub,
+} from './dashboard/pages';
+import { isAutomationPaused, setAutomationPaused } from './dashboard/state';
 
 const DASHBOARD_USER = process.env.DASHBOARD_USER;
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
@@ -18,82 +30,36 @@ function checkAuth(req: http.IncomingMessage): boolean {
   return user === DASHBOARD_USER && pass === DASHBOARD_PASSWORD;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-async function renderDashboard(): Promise<string> {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const { count: todayCount } = await supabase
-    .from('threads_posts')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', startOfDay.toISOString());
-
-  const { count: totalCount } = await supabase
-    .from('threads_posts')
-    .select('*', { count: 'exact', head: true });
-
-  const { data: recentPosts } = await supabase
-    .from('threads_posts')
-    .select('content, status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(15);
-
-  const rows = (recentPosts || [])
-    .map((post: any) => {
-      const raw = post.content || '';
-      const full = escapeHtml(raw);
-      const time = new Date(post.created_at).toLocaleString('ko-KR', {
-        timeZone: 'Asia/Seoul',
-      });
-      const toggle =
-        raw.length > 120
-          ? `<button class="toggle" onclick="const w=this.parentElement;w.classList.toggle('expanded');this.textContent=w.classList.contains('expanded')?'접기':'더보기'">더보기</button>`
-          : '';
-      return `<li><div class="time">${time} · ${escapeHtml(post.status)}</div><div class="content-wrap"><div class="content">${full}</div>${toggle}</div></li>`;
-    })
-    .join('');
-
-  return `<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Threads 자동화 Bot</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0f1115; color:#eee; margin:0; padding:16px; }
-  h1 { font-size:1.2rem; margin:0 0 16px; }
-  h2 { font-size:1rem; color:#ccc; margin:20px 0 8px; }
-  .stats { display:flex; gap:12px; }
-  .stat { flex:1; background:#1b1e26; border-radius:12px; padding:14px; text-align:center; }
-  .stat .num { font-size:1.8rem; font-weight:700; }
-  .stat .label { font-size:.75rem; color:#999; margin-top:4px; }
-  ul { list-style:none; padding:0; margin:0; }
-  li { background:#1b1e26; border-radius:10px; padding:10px 12px; margin-bottom:8px; }
-  .time { font-size:.7rem; color:#8ab4f8; margin-bottom:4px; }
-  .content-wrap .content { font-size:.9rem; white-space:pre-wrap; word-break:break-word; max-height:4.8em; overflow:hidden; }
-  .content-wrap.expanded .content { max-height:none; }
-  .toggle { background:none; border:none; color:#8ab4f8; font-size:.8rem; padding:6px 0 0; margin:0; cursor:pointer; }
-  .empty { color:#777; text-align:center; padding:20px; }
-</style>
-</head>
-<body>
-  <h1>🤖 Threads 자동화 Bot</h1>
-  <div class="stats">
-    <div class="stat"><div class="num">${todayCount ?? 0}</div><div class="label">오늘 생성</div></div>
-    <div class="stat"><div class="num">${totalCount ?? 0}</div><div class="label">전체 누적</div></div>
-  </div>
-  <h2>최근 콘텐츠</h2>
-  ${rows ? `<ul>${rows}</ul>` : '<div class="empty">아직 생성된 콘텐츠가 없습니다</div>'}
-</body>
-</html>`;
-}
+const PAGES: Record<string, { nav: NavKey; title: string; subtitle: string; render: () => Promise<string> | string }> = {
+  '/': {
+    nav: 'dashboard',
+    title: '안녕하세요. 오늘도 자동화 현황을 확인해보세요',
+    subtitle: '콘텐츠 생성부터 게시까지의 전체 상태입니다.',
+    render: () => renderDashboardBody(isAutomationPaused()),
+  },
+  '/content': {
+    nav: 'content',
+    title: '콘텐츠',
+    subtitle: '최근 생성된 콘텐츠 50개입니다.',
+    render: renderContentBody,
+  },
+  '/activity': {
+    nav: 'activity',
+    title: '작업 기록',
+    subtitle: '봇이 수행한 주요 작업 로그입니다.',
+    render: renderActivityBody,
+  },
+  '/connection': {
+    nav: 'connection',
+    title: 'Threads 연결',
+    subtitle: '게시에 사용되는 Threads 세션 상태입니다.',
+    render: renderConnectionBody,
+  },
+  '/comments': { nav: 'comments', title: '댓글', subtitle: '', render: commentsStub },
+  '/analytics': { nav: 'analytics', title: '성과 분석', subtitle: '', render: analyticsStub },
+  '/settings': { nav: 'settings', title: '설정', subtitle: '', render: settingsStub },
+  '/backup': { nav: 'backup', title: '백업', subtitle: '', render: backupStub },
+};
 
 export function startDashboardServer() {
   if (!DASHBOARD_USER || !DASHBOARD_PASSWORD) {
@@ -114,14 +80,27 @@ export function startDashboardServer() {
       return;
     }
 
-    if (req.url === '/' || req.url === '') {
+    const url = req.url || '/';
+
+    if (req.method === 'POST' && (url === '/api/automation/pause' || url === '/api/automation/resume')) {
+      const paused = url === '/api/automation/pause';
+      setAutomationPaused(paused);
+      await logActivity('1', paused ? 'automation_paused' : 'automation_resumed');
+      res.writeHead(303, { Location: '/' });
+      res.end();
+      return;
+    }
+
+    const page = PAGES[url];
+    if (page) {
       try {
-        const html = await renderDashboard();
+        const body = await page.render();
+        const html = renderShell(page.nav, page.title, page.subtitle, body, isAutomationPaused());
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(html);
       } catch (error) {
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end(`대시보드 로딩 실패: ${error}`);
+        res.end(`페이지 로딩 실패: ${error}`);
       }
       return;
     }
