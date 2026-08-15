@@ -1,8 +1,14 @@
 import * as dotenv from 'dotenv';
 import { CronJob } from 'cron';
 import { ContentAgent } from './agents/content.agent';
+import { PublisherAgent } from './agents/publisher.agent';
 import { TelegramService } from './services/telegram.service';
-import { supabase, testConnection, savePost } from '../../shared/src/utils/supabase';
+import {
+  supabase,
+  testConnection,
+  savePost,
+  updatePostStatus,
+} from '../../shared/src/utils/supabase';
 import { startDashboardServer } from './server';
 
 dotenv.config({ path: '../../.env' });
@@ -14,14 +20,16 @@ const TOPICS = [
   '하루 100개 포스팅',
 ];
 
-// 콘텐츠 생성 주기 (기본: 매시간). 바꾸려면 Railway 환경변수 CONTENT_CRON_SCHEDULE에 cron 표현식 설정
-const CONTENT_CRON_SCHEDULE = process.env.CONTENT_CRON_SCHEDULE || '0 * * * *';
+// 콘텐츠 생성/게시 주기 (기본: 하루 3회 - 09시/14시/20시). 실제 계정에 게시되므로 과도하게 높이지 않는 것을 권장.
+// 바꾸려면 Railway 환경변수 CONTENT_CRON_SCHEDULE에 cron 표현식 설정
+const CONTENT_CRON_SCHEDULE = process.env.CONTENT_CRON_SCHEDULE || '0 9,14,20 * * *';
 // 일일 리포트 시각 (기본: 매일 21:00). 바꾸려면 REPORT_CRON_SCHEDULE 설정
 const REPORT_CRON_SCHEDULE = process.env.REPORT_CRON_SCHEDULE || '0 21 * * *';
 const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'Asia/Seoul';
 
 let telegram: TelegramService;
 let contentAgent: ContentAgent;
+let publisher: PublisherAgent;
 
 async function generateAndSaveContent() {
   const topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
@@ -35,7 +43,7 @@ async function generateAndSaveContent() {
     console.log(content);
     console.log('---');
 
-    const { error } = await savePost({
+    const { data: post, error } = await savePost({
       account_id: 1,
       content: content,
       status: 'pending',
@@ -43,8 +51,18 @@ async function generateAndSaveContent() {
 
     if (error) throw error;
 
-    console.log('✅ 저장 완료');
-    await telegram.notifySuccess(`콘텐츠 생성 완료: "${topic}"`);
+    console.log('✅ 저장 완료, Threads 게시 시도 중...');
+    const result = await publisher.publish(content);
+
+    if (result.success) {
+      await updatePostStatus(post.id, 'posted');
+      console.log('✅ Threads 게시 완료');
+      await telegram.notifySuccess(`Threads에 게시 완료: "${topic}"`);
+    } else {
+      await updatePostStatus(post.id, 'failed', result.error);
+      console.error(`❌ Threads 게시 실패: ${result.error}`);
+      await telegram.notifyError(`Threads 게시 실패: ${result.error}`);
+    }
   } catch (error) {
     console.error(`❌ 실패: ${error}`);
     await telegram.notifyError(String(error));
@@ -114,6 +132,7 @@ async function main() {
 
     console.log('4️⃣ ContentAgent 초기화...');
     contentAgent = new ContentAgent(process.env.CLAUDE_API_KEY!);
+    publisher = new PublisherAgent();
     console.log('✅ ContentAgent 준비 완료\n');
 
     console.log('5️⃣ 스케줄러 등록 중...');

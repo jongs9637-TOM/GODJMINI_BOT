@@ -48,7 +48,14 @@ export async function logActivity(
 }
 
 export async function savePost(data: any) {
-  return await supabase.from('threads_posts').insert(data);
+  return await supabase.from('threads_posts').insert(data).select().single();
+}
+
+export async function updatePostStatus(id: number, status: string, errorMessage?: string) {
+  return await supabase
+    .from('threads_posts')
+    .update({ status, error_message: errorMessage })
+    .eq('id', id);
 }
 
 export async function saveAnalytics(data: any) {
