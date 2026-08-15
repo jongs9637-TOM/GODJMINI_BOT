@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>관심 종목 관리표</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  #storageWarning {
+    display: none;
+    background: #fdecea;
+    color: #a13c3c;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: .9rem;
+    text-align: center;
+  }
+  .search-box {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.1rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 16px;
+  }
+  .add-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .add-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .add-row input {
+    flex: 1;
+    min-width: 100px;
+    padding: 14px;
+    font-size: 1rem;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+  }
+  .add-row button {
+    padding: 0 20px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  th, td {
+    padding: 14px 12px;
+    text-align: left;
+    font-size: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    cursor: pointer;
+    user-select: none;
+    font-size: .85rem;
+    color: var(--muted);
+    background: #fff2e8;
+    white-space: nowrap;
+  }
+  th .arrow { font-size: .7rem; margin-left: 2px; }
+  tr:last-child td { border-bottom: none; }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 2px 8px;
+  }
+  .empty-msg {
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 0;
+    font-size: 1rem;
+    background: var(--card);
+    border-radius: 16px;
+  }
+  .table-wrap {
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🔍 관심 종목 관리표</h1>
+
+  <div id="storageWarning">
+    ⚠️ 이 브라우저에서는 목록 저장이 안 돼요. 창을 닫으면 목록이 초기화될 수 있습니다.
+  </div>
+
+  <input type="text" class="search-box" id="searchInput" placeholder="종목명, 코드, 메모로 검색">
+
+  <div class="add-card">
+    <div class="add-row">
+      <input type="text" id="nameInput" placeholder="종목명 (예: 삼성전자)">
+      <input type="text" id="codeInput" placeholder="코드 (예: 005930)">
+      <input type="text" id="noteInput" placeholder="메모 (선택)">
+      <button id="addButton">추가</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th data-key="name">종목명<span class="arrow" id="arrow-name"></span></th>
+          <th data-key="code">코드<span class="arrow" id="arrow-code"></span></th>
+          <th data-key="note">메모<span class="arrow" id="arrow-note"></span></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'search-table-rows';
+
+    let storageOK = true;
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        storageOK = false;
+        return fallback;
+      }
+    }
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+
+    const defaultRows = [
+      { name: '삼성전자', code: '005930', note: '반도체' },
+      { name: 'SK하이닉스', code: '000660', note: '반도체' },
+      { name: '카카오', code: '035720', note: '플랫폼' },
+    ];
+
+    let rows = safeGet(STORAGE_KEY, null) || defaultRows;
+    let sortKey = null;
+    let sortAsc = true;
+    let searchTerm = '';
+
+    const tableBodyEl = document.getElementById('tableBody');
+    const searchInputEl = document.getElementById('searchInput');
+    const nameInputEl = document.getElementById('nameInput');
+    const codeInputEl = document.getElementById('codeInput');
+    const noteInputEl = document.getElementById('noteInput');
+    const addButtonEl = document.getElementById('addButton');
+    const warningEl = document.getElementById('storageWarning');
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function flashInput(el, message) {
+      const original = el.placeholder;
+      el.placeholder = message;
+      el.style.borderColor = '#e2622f';
+      setTimeout(() => {
+        el.placeholder = original;
+        el.style.borderColor = '';
+      }, 1500);
+    }
+
+    function updateArrows() {
+      ['name', 'code', 'note'].forEach(key => {
+        const el = document.getElementById('arrow-' + key);
+        if (key === sortKey) {
+          el.textContent = sortAsc ? '▲' : '▼';
+        } else {
+          el.textContent = '';
+        }
+      });
+    }
+
+    function render() {
+      let list = rows.map((r, i) => ({ ...r, _index: i }));
+
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        list = list.filter(r =>
+          (r.name || '').toLowerCase().includes(term) ||
+          (r.code || '').toLowerCase().includes(term) ||
+          (r.note || '').toLowerCase().includes(term)
+        );
+      }
+
+      if (sortKey) {
+        list.sort((a, b) => {
+          const av = (a[sortKey] || '').toString();
+          const bv = (b[sortKey] || '').toString();
+          const cmp = av.localeCompare(bv, 'ko', { numeric: true });
+          return sortAsc ? cmp : -cmp;
+        });
+      }
+
+      tableBodyEl.innerHTML = '';
+
+      if (list.length === 0) {
+        tableBodyEl.innerHTML = `<tr><td colspan="4"><div class="empty-msg">${rows.length === 0 ? '항목을 추가해보세요' : '검색 결과가 없어요'}</div></td></tr>`;
+        return;
+      }
+
+      list.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(r.code)}</td>
+          <td>${escapeHtml(r.note)}</td>
+          <td></td>
+        `;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '×';
+        delBtn.onclick = () => {
+          rows.splice(r._index, 1);
+          save();
+          render();
+        };
+        tr.lastElementChild.appendChild(delBtn);
+        tableBodyEl.appendChild(tr);
+      });
+
+      updateArrows();
+    }
+
+    document.querySelectorAll('th[data-key]').forEach(th => {
+      th.onclick = () => {
+        const key = th.dataset.key;
+        if (sortKey === key) {
+          sortAsc = !sortAsc;
+        } else {
+          sortKey = key;
+          sortAsc = true;
+        }
+        render();
+      };
+    });
+
+    searchInputEl.addEventListener('input', () => {
+      searchTerm = searchInputEl.value.trim();
+      render();
+    });
+
+    function addRow() {
+      const name = nameInputEl.value.trim();
+      const code = codeInputEl.value.trim();
+      const note = noteInputEl.value.trim();
+
+      if (!name) {
+        flashInput(nameInputEl, '종목명을 입력해주세요');
+        return;
+      }
+
+      rows.push({ name, code, note });
+      nameInputEl.value = '';
+      codeInputEl.value = '';
+      noteInputEl.value = '';
+      save();
+      render();
+      nameInputEl.focus();
+    }
+
+    addButtonEl.onclick = addRow;
+    [nameInputEl, codeInputEl, noteInputEl].forEach(el => {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') addRow();
+      });
+    });
+
+    if (!storageOK) warningEl.style.display = 'block';
+    render();
+  </script>
+
+</body>
+</html>

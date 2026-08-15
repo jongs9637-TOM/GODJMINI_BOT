@@ -6,3 +6,4 @@ dist/
 threads-session.json
 .claude/
 *.zip
+market-kit/
