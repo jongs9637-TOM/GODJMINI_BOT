@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>매일 체크표</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+    --green: #2f9e56;
+    --green-bg: #eaf8ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 4px;
+  }
+  .today {
+    text-align: center;
+    color: var(--muted);
+    font-size: .9rem;
+    margin-bottom: 20px;
+  }
+  #storageWarning {
+    display: none;
+    background: #fdecea;
+    color: #a13c3c;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: .9rem;
+    text-align: center;
+  }
+  .add-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .add-row {
+    display: flex;
+    gap: 8px;
+  }
+  .add-row input {
+    flex: 1;
+    padding: 16px;
+    font-size: 1.05rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    min-width: 0;
+  }
+  .add-row button {
+    padding: 0 20px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .habit-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.05);
+  }
+  .check-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    background: #fff;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    color: transparent;
+  }
+  .check-circle.checked {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+  .habit-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .habit-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+    word-break: break-word;
+  }
+  .habit-week {
+    font-size: .8rem;
+    color: var(--muted);
+  }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 6px;
+    flex-shrink: 0;
+  }
+  .empty-msg {
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 0;
+    font-size: 1rem;
+  }
+</style>
+</head>
+<body>
+
+  <h1>✅ 매일 체크표</h1>
+  <div class="today" id="todayLabel"></div>
+
+  <div id="storageWarning">
+    ⚠️ 이 브라우저에서는 기록 저장이 안 돼요. 창을 닫으면 기록이 사라질 수 있습니다.
+  </div>
+
+  <div class="add-card">
+    <div class="add-row">
+      <input type="text" id="habitInput" placeholder="예: 약 먹기, 운동, 물 마시기">
+      <button id="addButton">추가</button>
+    </div>
+  </div>
+
+  <div id="habitList"></div>
+
+  <script>
+    const STORAGE_KEY = 'daily-checklist-habits';
+
+    let storageOK = true;
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        storageOK = false;
+        return fallback;
+      }
+    }
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+
+    // habits: [{ name, checkedDates: ['2026-08-15', ...] }]
+    let habits = safeGet(STORAGE_KEY, []);
+
+    const habitListEl = document.getElementById('habitList');
+    const habitInputEl = document.getElementById('habitInput');
+    const addButtonEl = document.getElementById('addButton');
+    const todayLabelEl = document.getElementById('todayLabel');
+    const warningEl = document.getElementById('storageWarning');
+
+    function todayStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function weekStartStr() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      const dow = d.getDay(); // 0=일 ... 6=토
+      const diffToMonday = dow === 0 ? 6 : dow - 1;
+      d.setDate(d.getDate() - diffToMonday);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function flashInput(el, message) {
+      const original = el.placeholder;
+      el.placeholder = message;
+      el.style.borderColor = '#e2622f';
+      setTimeout(() => {
+        el.placeholder = original;
+        el.style.borderColor = '';
+      }, 1500);
+    }
+
+    function renderTodayLabel() {
+      const d = new Date();
+      const weekday = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+      todayLabelEl.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${weekday})`;
+    }
+
+    function weeklyCount(checkedDates) {
+      const start = weekStartStr();
+      return checkedDates.filter(date => date >= start).length;
+    }
+
+    function render() {
+      habitListEl.innerHTML = '';
+
+      if (habits.length === 0) {
+        habitListEl.innerHTML = '<div class="empty-msg">체크할 항목을 추가해보세요</div>';
+        return;
+      }
+
+      const today = todayStr();
+
+      habits.forEach((habit, index) => {
+        const isCheckedToday = habit.checkedDates.includes(today);
+
+        const card = document.createElement('div');
+        card.className = 'habit-card';
+
+        const circle = document.createElement('div');
+        circle.className = 'check-circle' + (isCheckedToday ? ' checked' : '');
+        circle.textContent = '✓';
+        circle.onclick = () => {
+          const i = habit.checkedDates.indexOf(today);
+          if (i >= 0) habit.checkedDates.splice(i, 1);
+          else habit.checkedDates.push(today);
+          save();
+          render();
+        };
+
+        const info = document.createElement('div');
+        info.className = 'habit-info';
+        info.innerHTML = `<div class="habit-name">${escapeHtml(habit.name)}</div><div class="habit-week">이번 주 ${weeklyCount(habit.checkedDates)}번</div>`;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '×';
+        delBtn.onclick = () => {
+          habits.splice(index, 1);
+          save();
+          render();
+        };
+
+        card.appendChild(circle);
+        card.appendChild(info);
+        card.appendChild(delBtn);
+        habitListEl.appendChild(card);
+      });
+    }
+
+    function addHabit() {
+      const name = habitInputEl.value.trim();
+      if (!name) {
+        flashInput(habitInputEl, '항목 이름을 입력해주세요');
+        return;
+      }
+      habits.push({ name, checkedDates: [] });
+      habitInputEl.value = '';
+      save();
+      render();
+    }
+
+    addButtonEl.onclick = addHabit;
+    habitInputEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addHabit();
+    });
+
+    renderTodayLabel();
+    if (!storageOK) warningEl.style.display = 'block';
+    render();
+  </script>
+
+</body>
+</html>

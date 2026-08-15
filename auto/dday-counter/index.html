@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>디데이 카운터</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+    --past: #b7ada0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  #storageWarning {
+    display: none;
+    background: #fdecea;
+    color: #a13c3c;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: .9rem;
+    text-align: center;
+  }
+  .add-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .add-card label {
+    display: block;
+    font-size: .85rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .add-card input {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.1rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+  .add-card button {
+    width: 100%;
+    padding: 18px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 var(--accent-dark);
+  }
+  .add-card button:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 var(--accent-dark);
+  }
+  .empty-msg {
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 0;
+    font-size: 1rem;
+  }
+  .dday-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 3px 14px rgba(0,0,0,.05);
+  }
+  .dday-card.today {
+    background: var(--accent);
+    color: #fff;
+  }
+  .dday-info .name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .dday-info .date {
+    font-size: .78rem;
+    color: var(--muted);
+  }
+  .dday-card.today .dday-info .date {
+    color: #ffe6da;
+  }
+  .dday-card.past .dday-info .date {
+    color: var(--muted);
+  }
+  .dday-number {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--accent-dark);
+    white-space: nowrap;
+  }
+  .dday-card.today .dday-number {
+    color: #fff;
+  }
+  .dday-card.past .dday-number {
+    color: var(--past);
+  }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 6px;
+    margin-left: 10px;
+  }
+  .dday-card.today .delete-btn {
+    color: #ffe6da;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+  <h1>📅 디데이 카운터</h1>
+
+  <div id="storageWarning">
+    ⚠️ 이 브라우저에서는 목록 저장이 안 돼요. 창을 닫으면 목록이 초기화될 수 있습니다.
+  </div>
+
+  <div class="add-card">
+    <label for="nameInput">이름 (예: 딸 생일)</label>
+    <input type="text" id="nameInput" placeholder="딸 생일">
+    <label for="dateInput">날짜</label>
+    <input type="date" id="dateInput">
+    <button id="addButton">등록하기</button>
+  </div>
+
+  <div id="list"></div>
+
+  <script>
+    const STORAGE_KEY = 'dday-counter-items';
+
+    let storageOK = true;
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        storageOK = false;
+        return fallback;
+      }
+    }
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+
+    let items = safeGet(STORAGE_KEY, []);
+
+    const listEl = document.getElementById('list');
+    const nameInputEl = document.getElementById('nameInput');
+    const dateInputEl = document.getElementById('dateInput');
+    const addButtonEl = document.getElementById('addButton');
+    const warningEl = document.getElementById('storageWarning');
+
+    function flashInput(el, message) {
+      const original = el.placeholder;
+      el.placeholder = message;
+      el.style.borderColor = '#e2622f';
+      setTimeout(() => {
+        el.placeholder = original;
+        el.style.borderColor = '';
+      }, 1500);
+    }
+
+    function todayMidnight() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function diffDays(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const target = new Date(y, m - 1, d);
+      target.setHours(0, 0, 0, 0);
+      const today = todayMidnight();
+      return Math.round((target - today) / 86400000);
+    }
+
+    function sortKey(diff) {
+      return diff >= 0 ? diff : 100000 + Math.abs(diff);
+    }
+
+    function formatDate(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return `${y}년 ${m}월 ${d}일`;
+    }
+
+    function render() {
+      listEl.innerHTML = '';
+
+      if (items.length === 0) {
+        listEl.innerHTML = '<div class="empty-msg">중요한 날짜를 등록해보세요</div>';
+        return;
+      }
+
+      const withDiff = items.map((item, index) => ({
+        ...item,
+        index,
+        diff: diffDays(item.date),
+      }));
+
+      withDiff.sort((a, b) => sortKey(a.diff) - sortKey(b.diff));
+
+      withDiff.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'dday-card';
+        if (item.diff === 0) card.classList.add('today');
+        else if (item.diff < 0) card.classList.add('past');
+
+        const info = document.createElement('div');
+        info.className = 'dday-info';
+        info.innerHTML = `<div class="name">${escapeHtml(item.name)}</div><div class="date">${formatDate(item.date)}</div>`;
+
+        const numberEl = document.createElement('div');
+        numberEl.className = 'dday-number';
+        numberEl.textContent = item.diff === 0 ? 'D-DAY' : item.diff > 0 ? `D-${item.diff}` : `D+${Math.abs(item.diff)}`;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '×';
+        delBtn.onclick = () => {
+          items.splice(item.index, 1);
+          save();
+          render();
+        };
+
+        row.appendChild(numberEl);
+        row.appendChild(delBtn);
+
+        card.appendChild(info);
+        card.appendChild(row);
+        listEl.appendChild(card);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function addItem() {
+      const name = nameInputEl.value.trim();
+      const date = dateInputEl.value;
+
+      if (!name) {
+        flashInput(nameInputEl, '이름을 먼저 입력해주세요');
+        return;
+      }
+      if (!date) {
+        dateInputEl.style.borderColor = '#e2622f';
+        setTimeout(() => (dateInputEl.style.borderColor = ''), 1500);
+        return;
+      }
+
+      items.push({ name, date });
+      nameInputEl.value = '';
+      dateInputEl.value = '';
+      save();
+      render();
+    }
+
+    addButtonEl.onclick = addItem;
+
+    if (!storageOK) warningEl.style.display = 'block';
+    render();
+  </script>
+
+</body>
+</html>

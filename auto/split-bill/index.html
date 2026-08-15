@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N빵 계산기</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+    --green: #2f9e56;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  #storageWarning {
+    display: none;
+    background: #fdecea;
+    color: #a13c3c;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: .9rem;
+    text-align: center;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .card h2 {
+    font-size: 1rem;
+    margin: 0 0 14px;
+  }
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .add-row input {
+    padding: 16px;
+    font-size: 1.05rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    min-width: 0;
+  }
+  .add-row input.name { flex: 1; }
+  .add-row input.amount { flex: 1; }
+  .add-row button {
+    padding: 0 20px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .person-list {
+    list-style: none;
+    margin: 0 0 4px;
+    padding: 0;
+  }
+  .person-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.05rem;
+  }
+  .person-list li:last-child { border-bottom: none; }
+  .person-amount { color: var(--muted); }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .empty-msg {
+    color: var(--muted);
+    text-align: center;
+    padding: 16px 0;
+    font-size: .95rem;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .summary-box {
+    background: #fff2e8;
+    border-radius: 14px;
+    padding: 14px;
+    text-align: center;
+  }
+  .summary-box .label { font-size: .78rem; color: var(--muted); margin-bottom: 4px; }
+  .summary-box .value { font-size: 1.5rem; font-weight: 800; color: var(--accent-dark); }
+  .settle-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .settle-list li {
+    background: #f3fbf5;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .settle-list .amount {
+    font-weight: 800;
+    color: var(--green);
+  }
+  .reset-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--muted);
+    background: none;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+  <h1>💸 N빵 계산기</h1>
+
+  <div id="storageWarning">
+    ⚠️ 이 브라우저에서는 목록 저장이 안 돼요. 창을 닫으면 목록이 초기화될 수 있습니다.
+  </div>
+
+  <div class="card">
+    <h2>누가 얼마 냈나요?</h2>
+    <div class="add-row">
+      <input type="text" class="name" id="nameInput" placeholder="이름">
+      <input type="number" class="amount" id="amountInput" placeholder="낸 금액" inputmode="numeric">
+      <button id="addButton">추가</button>
+    </div>
+    <ul class="person-list" id="personList"></ul>
+  </div>
+
+  <div class="card">
+    <h2>정산 결과</h2>
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="label">총 금액</div>
+        <div class="value" id="totalValue">0원</div>
+      </div>
+      <div class="summary-box">
+        <div class="label">1인당</div>
+        <div class="value" id="perPersonValue">0원</div>
+      </div>
+    </div>
+    <ul class="settle-list" id="settleList"></ul>
+  </div>
+
+  <button class="reset-btn" id="resetButton">전체 초기화</button>
+
+  <script>
+    const STORAGE_KEY = 'split-bill-people';
+
+    let storageOK = true;
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        storageOK = false;
+        return fallback;
+      }
+    }
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(people));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+
+    let people = safeGet(STORAGE_KEY, []);
+
+    const personListEl = document.getElementById('personList');
+    const nameInputEl = document.getElementById('nameInput');
+    const amountInputEl = document.getElementById('amountInput');
+    const addButtonEl = document.getElementById('addButton');
+    const totalValueEl = document.getElementById('totalValue');
+    const perPersonValueEl = document.getElementById('perPersonValue');
+    const settleListEl = document.getElementById('settleList');
+    const resetButtonEl = document.getElementById('resetButton');
+    const warningEl = document.getElementById('storageWarning');
+
+    function won(n) {
+      return Math.round(n).toLocaleString('ko-KR') + '원';
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function flashInput(el, message) {
+      const original = el.placeholder;
+      el.placeholder = message;
+      el.style.borderColor = '#e2622f';
+      setTimeout(() => {
+        el.placeholder = original;
+        el.style.borderColor = '';
+      }, 1500);
+    }
+
+    function renderPeople() {
+      personListEl.innerHTML = '';
+
+      if (people.length === 0) {
+        personListEl.innerHTML = '<div class="empty-msg">낸 사람을 추가해주세요</div>';
+        return;
+      }
+
+      people.forEach((p, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escapeHtml(p.name)}</span><span class="person-amount">${won(p.amount)}</span>`;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '×';
+        delBtn.onclick = () => {
+          people.splice(index, 1);
+          save();
+          renderAll();
+        };
+
+        li.appendChild(delBtn);
+        personListEl.appendChild(li);
+      });
+    }
+
+    function renderSettlement() {
+      const total = people.reduce((sum, p) => sum + p.amount, 0);
+      const count = people.length;
+      const perPerson = count > 0 ? total / count : 0;
+
+      totalValueEl.textContent = won(total);
+      perPersonValueEl.textContent = won(perPerson);
+
+      settleListEl.innerHTML = '';
+
+      if (count < 2) {
+        settleListEl.innerHTML = '<div class="empty-msg">2명 이상 추가하면 정산 결과가 나와요</div>';
+        return;
+      }
+
+      // 잔액 = 낸 돈 - 1인당 부담액. 양수면 받을 사람, 음수면 낼 사람.
+      const balances = people.map(p => ({ name: p.name, balance: p.amount - perPerson }));
+
+      const creditors = balances.filter(b => b.balance > 1).sort((a, b) => b.balance - a.balance);
+      const debtors = balances.filter(b => b.balance < -1).sort((a, b) => a.balance - b.balance);
+
+      const transactions = [];
+      let ci = 0, di = 0;
+
+      while (ci < creditors.length && di < debtors.length) {
+        const creditor = creditors[ci];
+        const debtor = debtors[di];
+        const amount = Math.min(creditor.balance, -debtor.balance);
+
+        if (amount > 1) {
+          transactions.push({ from: debtor.name, to: creditor.name, amount });
+        }
+
+        creditor.balance -= amount;
+        debtor.balance += amount;
+
+        if (creditor.balance <= 1) ci++;
+        if (debtor.balance >= -1) di++;
+      }
+
+      if (transactions.length === 0) {
+        settleListEl.innerHTML = '<div class="empty-msg">이미 다 같은 금액을 냈어요 🎉</div>';
+        return;
+      }
+
+      transactions.forEach(t => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escapeHtml(t.from)} → ${escapeHtml(t.to)}</span><span class="amount">${won(t.amount)}</span>`;
+        settleListEl.appendChild(li);
+      });
+    }
+
+    function renderAll() {
+      renderPeople();
+      renderSettlement();
+    }
+
+    function addPerson() {
+      const name = nameInputEl.value.trim();
+      const amount = Number(amountInputEl.value);
+
+      if (!name) {
+        flashInput(nameInputEl, '이름을 먼저 입력해주세요');
+        return;
+      }
+      if (!amountInputEl.value || isNaN(amount) || amount < 0) {
+        flashInput(amountInputEl, '낸 금액을 입력해주세요');
+        return;
+      }
+
+      people.push({ name, amount });
+      nameInputEl.value = '';
+      amountInputEl.value = '';
+      save();
+      renderAll();
+      nameInputEl.focus();
+    }
+
+    addButtonEl.onclick = addPerson;
+    [nameInputEl, amountInputEl].forEach(el => {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') addPerson();
+      });
+    });
+
+    resetButtonEl.onclick = () => {
+      if (people.length === 0) return;
+      if (!confirm('전체 목록을 지울까요?')) return;
+      people = [];
+      save();
+      renderAll();
+    };
+
+    if (!storageOK) warningEl.style.display = 'block';
+    renderAll();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>적금·대출 이자 계산기</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+    --green: #2f9e56;
+    --green-bg: #eaf8ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  .mode-switch {
+    display: flex;
+    background: var(--card);
+    border-radius: 16px;
+    padding: 6px;
+    margin-bottom: 20px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.05);
+  }
+  .mode-switch button {
+    flex: 1;
+    padding: 14px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .mode-switch button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .field {
+    margin-bottom: 16px;
+  }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: .85rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .field .input-wrap { position: relative; }
+  .field input {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.15rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+  }
+  .field .unit {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 1rem;
+    pointer-events: none;
+  }
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .result-box {
+    background: var(--green-bg);
+    border-radius: 16px;
+    padding: 18px 12px;
+    text-align: center;
+  }
+  .result-box .label {
+    font-size: .8rem;
+    color: var(--green);
+    opacity: .85;
+    margin-bottom: 6px;
+  }
+  .result-box .value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--green);
+    word-break: keep-all;
+  }
+  .note {
+    font-size: .72rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 14px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🏦 적금·대출 이자 계산기</h1>
+
+  <div class="mode-switch">
+    <button id="savingsBtn" class="active">적금</button>
+    <button id="loanBtn">대출</button>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label id="amountLabel" for="amountInput">매달 넣는 돈</label>
+      <div class="input-wrap">
+        <input type="number" id="amountInput" inputmode="numeric" placeholder="0">
+        <span class="unit">원</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="monthsInput">기간</label>
+      <div class="input-wrap">
+        <input type="number" id="monthsInput" inputmode="numeric" placeholder="0">
+        <span class="unit">개월</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="rateInput">연 이자율</label>
+      <div class="input-wrap">
+        <input type="number" id="rateInput" inputmode="decimal" placeholder="0">
+        <span class="unit">%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="result-grid">
+    <div class="result-box">
+      <div class="label" id="resultLabel1">만기 수령액</div>
+      <div class="value" id="resultValue1">0원</div>
+    </div>
+    <div class="result-box">
+      <div class="label" id="resultLabel2">이자 (세전)</div>
+      <div class="value" id="resultValue2">0원</div>
+    </div>
+  </div>
+
+  <div class="note" id="noteText">
+    정기적금(단리) 기준 계산이며, 세금은 반영하지 않은 세전 금액입니다. 실제 은행 상품과는 차이가 있을 수 있어요.
+  </div>
+
+  <script>
+    const savingsBtn = document.getElementById('savingsBtn');
+    const loanBtn = document.getElementById('loanBtn');
+    const amountLabel = document.getElementById('amountLabel');
+    const amountInput = document.getElementById('amountInput');
+    const monthsInput = document.getElementById('monthsInput');
+    const rateInput = document.getElementById('rateInput');
+    const resultLabel1 = document.getElementById('resultLabel1');
+    const resultValue1 = document.getElementById('resultValue1');
+    const resultLabel2 = document.getElementById('resultLabel2');
+    const resultValue2 = document.getElementById('resultValue2');
+    const noteText = document.getElementById('noteText');
+
+    let mode = 'savings';
+
+    function won(n) {
+      const rounded = Math.round(n);
+      const sign = rounded < 0 ? '-' : '';
+      return sign + Math.abs(rounded).toLocaleString('ko-KR') + '원';
+    }
+
+    function num(el) {
+      const v = parseFloat(el.value);
+      return isNaN(v) ? 0 : v;
+    }
+
+    function setMode(newMode) {
+      mode = newMode;
+      savingsBtn.classList.toggle('active', mode === 'savings');
+      loanBtn.classList.toggle('active', mode === 'loan');
+
+      if (mode === 'savings') {
+        amountLabel.textContent = '매달 넣는 돈';
+        resultLabel1.textContent = '만기 수령액';
+        resultLabel2.textContent = '이자 (세전)';
+        noteText.textContent = '정기적금(단리) 기준 계산이며, 세금은 반영하지 않은 세전 금액입니다. 실제 은행 상품과는 차이가 있을 수 있어요.';
+      } else {
+        amountLabel.textContent = '빌린 돈 (대출 원금)';
+        resultLabel1.textContent = '매달 갚을 돈';
+        resultLabel2.textContent = '총 이자';
+        noteText.textContent = '원리금균등상환 기준 계산입니다. 실제 대출 상품(중도상환수수료 등)과는 차이가 있을 수 있어요.';
+      }
+
+      calculate();
+    }
+
+    function calculateSavings(monthlyAmount, months, annualRatePercent) {
+      const monthlyRate = annualRatePercent / 100 / 12;
+      const principal = monthlyAmount * months;
+      // 단리 정기적금: n개월 넣으면 총 (n(n+1)/2) 개월치 이자가 붙음
+      const interest = monthlyAmount * (months * (months + 1) / 2) * monthlyRate;
+      const total = principal + interest;
+      return { total, interest };
+    }
+
+    function calculateLoan(principal, months, annualRatePercent) {
+      const monthlyRate = annualRatePercent / 100 / 12;
+
+      if (months <= 0) return { monthlyPayment: 0, totalInterest: 0 };
+
+      let monthlyPayment;
+      if (monthlyRate === 0) {
+        monthlyPayment = principal / months;
+      } else {
+        const factor = Math.pow(1 + monthlyRate, months);
+        monthlyPayment = (principal * monthlyRate * factor) / (factor - 1);
+      }
+
+      const totalInterest = monthlyPayment * months - principal;
+      return { monthlyPayment, totalInterest };
+    }
+
+    function calculate() {
+      const amount = num(amountInput);
+      const months = num(monthsInput);
+      const rate = num(rateInput);
+
+      if (mode === 'savings') {
+        const { total, interest } = calculateSavings(amount, months, rate);
+        resultValue1.textContent = won(total);
+        resultValue2.textContent = won(interest);
+      } else {
+        const { monthlyPayment, totalInterest } = calculateLoan(amount, months, rate);
+        resultValue1.textContent = won(monthlyPayment);
+        resultValue2.textContent = won(totalInterest);
+      }
+    }
+
+    savingsBtn.onclick = () => setMode('savings');
+    loanBtn.onclick = () => setMode('loan');
+    [amountInput, monthsInput, rateInput].forEach(el => el.addEventListener('input', calculate));
+
+    calculate();
+  </script>
+
+</body>
+</html>

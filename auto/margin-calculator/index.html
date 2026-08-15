@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마진 계산기</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+    --green: #2f9e56;
+    --green-bg: #eaf8ee;
+    --red: #d64545;
+    --red-bg: #fdecea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .field {
+    margin-bottom: 16px;
+  }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: .85rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .field .input-wrap {
+    position: relative;
+  }
+  .field input {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.15rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+  }
+  .field .unit {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 1rem;
+    pointer-events: none;
+  }
+  .result-card {
+    border-radius: 20px;
+    padding: 28px 20px;
+    text-align: center;
+    transition: background .15s, color .15s;
+  }
+  .result-card.profit {
+    background: var(--green-bg);
+    color: var(--green);
+  }
+  .result-card.loss {
+    background: var(--red-bg);
+    color: var(--red);
+  }
+  .result-label {
+    font-size: .9rem;
+    opacity: .8;
+    margin-bottom: 6px;
+  }
+  .result-amount {
+    font-size: 2.6rem;
+    font-weight: 800;
+    margin-bottom: 18px;
+    word-break: keep-all;
+  }
+  .result-rate {
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+  .result-rate .small {
+    font-size: .85rem;
+    font-weight: 600;
+    opacity: .8;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🧮 마진 계산기</h1>
+
+  <div class="card">
+    <div class="field">
+      <label for="costInput">원가</label>
+      <div class="input-wrap">
+        <input type="number" id="costInput" inputmode="numeric" placeholder="0">
+        <span class="unit">원</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="priceInput">판매가</label>
+      <div class="input-wrap">
+        <input type="number" id="priceInput" inputmode="numeric" placeholder="0">
+        <span class="unit">원</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="feeInput">판매 수수료</label>
+      <div class="input-wrap">
+        <input type="number" id="feeInput" inputmode="decimal" placeholder="0">
+        <span class="unit">%</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="shippingInput">배송비</label>
+      <div class="input-wrap">
+        <input type="number" id="shippingInput" inputmode="numeric" placeholder="0">
+        <span class="unit">원</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="result-card profit" id="resultCard">
+    <div class="result-label">실수익</div>
+    <div class="result-amount" id="profitAmount">0원</div>
+    <div class="result-rate"><span id="marginRate">0</span>%<div class="small">마진율 (판매가 대비)</div></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'margin-calculator-inputs';
+
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+    function safeSave(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {
+        // 저장 안 돼도 계산기 자체는 계속 동작하면 됨
+      }
+    }
+
+    const costEl = document.getElementById('costInput');
+    const priceEl = document.getElementById('priceInput');
+    const feeEl = document.getElementById('feeInput');
+    const shippingEl = document.getElementById('shippingInput');
+    const resultCardEl = document.getElementById('resultCard');
+    const profitAmountEl = document.getElementById('profitAmount');
+    const marginRateEl = document.getElementById('marginRate');
+
+    const saved = safeGet(STORAGE_KEY, {});
+    if (saved.cost != null) costEl.value = saved.cost;
+    if (saved.price != null) priceEl.value = saved.price;
+    if (saved.fee != null) feeEl.value = saved.fee;
+    if (saved.shipping != null) shippingEl.value = saved.shipping;
+
+    function num(el) {
+      const v = parseFloat(el.value);
+      return isNaN(v) ? 0 : v;
+    }
+
+    function won(n) {
+      const rounded = Math.round(n);
+      const sign = rounded < 0 ? '-' : '';
+      return sign + Math.abs(rounded).toLocaleString('ko-KR') + '원';
+    }
+
+    function calculate() {
+      const cost = num(costEl);
+      const price = num(priceEl);
+      const feePercent = num(feeEl);
+      const shipping = num(shippingEl);
+
+      const feeAmount = price * (feePercent / 100);
+      const profit = price - cost - feeAmount - shipping;
+      const marginRate = price > 0 ? (profit / price) * 100 : 0;
+
+      profitAmountEl.textContent = won(profit);
+      marginRateEl.textContent = marginRate.toFixed(1);
+
+      resultCardEl.classList.toggle('profit', profit >= 0);
+      resultCardEl.classList.toggle('loss', profit < 0);
+
+      safeSave(STORAGE_KEY, {
+        cost: costEl.value,
+        price: priceEl.value,
+        fee: feeEl.value,
+        shipping: shippingEl.value,
+      });
+    }
+
+    [costEl, priceEl, feeEl, shippingEl].forEach(el => {
+      el.addEventListener('input', calculate);
+    });
+
+    calculate();
+  </script>
+
+</body>
+</html>

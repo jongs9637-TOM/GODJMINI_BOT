@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오늘 뭐 먹지? 점심 뽑기</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  .result-box {
+    background: var(--card);
+    border-radius: 24px;
+    padding: 40px 20px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+    margin-bottom: 20px;
+  }
+  .result-label {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .result-text {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--accent-dark);
+    min-height: 4.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    word-break: keep-all;
+  }
+  .pick-button {
+    display: block;
+    width: 100%;
+    padding: 26px;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 20px;
+    margin-bottom: 30px;
+    cursor: pointer;
+    box-shadow: 0 6px 0 var(--accent-dark);
+    transition: transform .05s;
+  }
+  .pick-button:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 var(--accent-dark);
+  }
+  .pick-button:disabled {
+    background: #d8cfc4;
+    box-shadow: 0 6px 0 #bdb3a6;
+    cursor: default;
+  }
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .add-row input {
+    flex: 1;
+    padding: 16px;
+    font-size: 1.1rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    min-width: 0;
+  }
+  .add-row button {
+    padding: 0 22px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .menu-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--card);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    font-size: 1.15rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  }
+  .menu-list li.just-picked {
+    border: 2px solid var(--accent);
+  }
+  .menu-list button.delete {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .empty-msg {
+    color: var(--muted);
+    text-align: center;
+    padding: 20px 0;
+    font-size: 1rem;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🍚 오늘 뭐 먹지?</h1>
+
+  <div id="storageWarning" style="display:none; background:#fdecea; color:#a13c3c; border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:.9rem; text-align:center;">
+    ⚠️ 이 브라우저에서는 목록 저장이 안 돼요. 창을 닫으면 목록이 초기화될 수 있습니다.
+  </div>
+
+  <div class="result-box">
+    <div class="result-label">오늘의 점심은</div>
+    <div class="result-text" id="resultText">?</div>
+  </div>
+
+  <button class="pick-button" id="pickButton">🎲 뽑기</button>
+
+  <div class="section-title">메뉴 후보</div>
+  <div class="add-row">
+    <input type="text" id="menuInput" placeholder="메뉴 이름 입력 (예: 김치찌개)">
+    <button id="addButton">추가</button>
+  </div>
+  <ul class="menu-list" id="menuList"></ul>
+
+  <script>
+    const STORAGE_KEY = 'lunch-picker-menus';
+    const LAST_PICKS_KEY = 'lunch-picker-last-picks';
+
+    const defaultMenus = ['김치찌개', '된장찌개', '돈까스', '짜장면', '샐러드', '비빔밥'];
+
+    let storageOK = true;
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        storageOK = false;
+        return fallback;
+      }
+    }
+
+    let menus = safeGet(STORAGE_KEY, null) || defaultMenus;
+    let lastPicks = safeGet(LAST_PICKS_KEY, []);
+
+    const menuListEl = document.getElementById('menuList');
+    const menuInputEl = document.getElementById('menuInput');
+    const addButtonEl = document.getElementById('addButton');
+    const pickButtonEl = document.getElementById('pickButton');
+    const resultTextEl = document.getElementById('resultText');
+    const warningEl = document.getElementById('storageWarning');
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(menus));
+        localStorage.setItem(LAST_PICKS_KEY, JSON.stringify(lastPicks));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+
+    function renderMenuList() {
+      menuListEl.innerHTML = '';
+
+      if (menus.length === 0) {
+        menuListEl.innerHTML = '<div class="empty-msg">메뉴를 추가해주세요</div>';
+        pickButtonEl.disabled = true;
+        return;
+      }
+
+      pickButtonEl.disabled = false;
+
+      menus.forEach((menu, index) => {
+        const li = document.createElement('li');
+        if (lastPicks.includes(menu)) li.classList.add('just-picked');
+
+        const span = document.createElement('span');
+        span.textContent = menu;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete';
+        delBtn.textContent = '×';
+        delBtn.onclick = () => {
+          menus.splice(index, 1);
+          save();
+          renderMenuList();
+        };
+
+        li.appendChild(span);
+        li.appendChild(delBtn);
+        menuListEl.appendChild(li);
+      });
+    }
+
+    function flashInput(message) {
+      const original = menuInputEl.placeholder;
+      menuInputEl.value = '';
+      menuInputEl.placeholder = message;
+      menuInputEl.style.borderColor = '#e2622f';
+      setTimeout(() => {
+        menuInputEl.placeholder = original;
+        menuInputEl.style.borderColor = '';
+      }, 1500);
+    }
+
+    function addMenu() {
+      const value = menuInputEl.value.trim();
+      if (!value) {
+        flashInput('메뉴 이름을 먼저 입력해주세요');
+        return;
+      }
+      if (menus.includes(value)) {
+        flashInput('이미 목록에 있는 메뉴예요');
+        return;
+      }
+      menus.push(value);
+      menuInputEl.value = '';
+      save();
+      renderMenuList();
+    }
+
+    addButtonEl.onclick = addMenu;
+    menuInputEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addMenu();
+    });
+
+    function weightedPick() {
+      // 최근에 뽑힌 메뉴는 가중치를 낮춰서 잘 안 나오게 함
+      const weights = menus.map(menu => (lastPicks.includes(menu) ? 0.15 : 1));
+      const total = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * total;
+
+      for (let i = 0; i < menus.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return menus[i];
+      }
+      return menus[menus.length - 1];
+    }
+
+    let spinning = false;
+
+    function pick() {
+      if (spinning || menus.length === 0) return;
+      spinning = true;
+      pickButtonEl.disabled = true;
+
+      const final = weightedPick();
+      let ticks = 0;
+      const maxTicks = 14;
+
+      const interval = setInterval(() => {
+        const random = menus[Math.floor(Math.random() * menus.length)];
+        resultTextEl.textContent = random;
+        ticks++;
+
+        if (ticks >= maxTicks) {
+          clearInterval(interval);
+          resultTextEl.textContent = final;
+
+          lastPicks = [final, ...lastPicks].slice(0, 2);
+          save();
+          renderMenuList();
+
+          spinning = false;
+          pickButtonEl.disabled = false;
+        }
+      }, 80);
+    }
+
+    pickButtonEl.onclick = pick;
+
+    if (!storageOK) warningEl.style.display = 'block';
+    renderMenuList();
+  </script>
+
+</body>
+</html>

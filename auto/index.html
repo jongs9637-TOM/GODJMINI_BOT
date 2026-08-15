@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나의 도구함</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.8rem;
+    margin: 10px 0 4px;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: .9rem;
+    margin-bottom: 28px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  @media (max-width: 420px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .tool-card {
+    display: block;
+    background: var(--card);
+    border-radius: 20px;
+    padding: 22px 18px;
+    text-decoration: none;
+    color: var(--text);
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+    transition: transform .1s;
+  }
+  .tool-card:active {
+    transform: scale(.97);
+  }
+  .tool-icon {
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+  }
+  .tool-name {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .tool-desc {
+    font-size: .82rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🧰 나의 도구함</h1>
+  <div class="subtitle">필요한 도구를 눌러서 바로 열어보세요</div>
+
+  <div class="grid">
+    <a class="tool-card" href="lunch-picker/index.html">
+      <div class="tool-icon">🍚</div>
+      <div class="tool-name">점심 뽑기</div>
+      <div class="tool-desc">오늘 뭐 먹지 고민될 때</div>
+    </a>
+
+    <a class="tool-card" href="dday-counter/index.html">
+      <div class="tool-icon">📅</div>
+      <div class="tool-name">디데이 카운터</div>
+      <div class="tool-desc">기념일·시험일까지 며칠 남았나</div>
+    </a>
+
+    <a class="tool-card" href="split-bill/index.html">
+      <div class="tool-icon">💸</div>
+      <div class="tool-name">N빵 계산기</div>
+      <div class="tool-desc">여행·회식 경비 누가 누구에게</div>
+    </a>
+
+    <a class="tool-card" href="margin-calculator/index.html">
+      <div class="tool-icon">🧮</div>
+      <div class="tool-name">마진 계산기</div>
+      <div class="tool-desc">팔면 실제로 얼마 남나</div>
+    </a>
+
+    <a class="tool-card" href="interest-calculator/index.html">
+      <div class="tool-icon">🏦</div>
+      <div class="tool-name">적금·대출 이자</div>
+      <div class="tool-desc">만기에 얼마 받나, 얼마 갚나</div>
+    </a>
+
+    <a class="tool-card" href="grocery-budget/index.html">
+      <div class="tool-icon">🛒</div>
+      <div class="tool-name">장보기 예산</div>
+      <div class="tool-desc">담을수록 줄어드는 남은 예산</div>
+    </a>
+
+    <a class="tool-card" href="daily-checklist/index.html">
+      <div class="tool-icon">✅</div>
+      <div class="tool-name">매일 체크표</div>
+      <div class="tool-desc">약·운동·공부, 눌러서 기록</div>
+    </a>
+  </div>
+
+</body>
+</html>

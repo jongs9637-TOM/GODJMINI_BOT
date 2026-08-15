@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장보기 예산 계산기</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --accent: #ff7a45;
+    --accent-dark: #e2622f;
+    --text: #33291f;
+    --muted: #9c9186;
+    --border: #f0e3d4;
+    --green: #2f9e56;
+    --red: #d64545;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "맑은 고딕", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin: 10px 0 24px;
+  }
+  #storageWarning {
+    display: none;
+    background: #fdecea;
+    color: #a13c3c;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: .9rem;
+    text-align: center;
+  }
+  .budget-card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .budget-card label {
+    display: block;
+    font-size: .85rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .budget-card input {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.15rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+  }
+  .remaining-card {
+    border-radius: 20px;
+    padding: 30px 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    background: #eaf8ee;
+    transition: background .15s, color .15s;
+  }
+  .remaining-card.over {
+    background: #fdecea;
+  }
+  .remaining-label {
+    font-size: .9rem;
+    color: var(--green);
+    opacity: .85;
+    margin-bottom: 6px;
+  }
+  .remaining-card.over .remaining-label { color: var(--red); }
+  .remaining-value {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: var(--green);
+    word-break: keep-all;
+  }
+  .remaining-card.over .remaining-value { color: var(--red); }
+  .remaining-sub {
+    font-size: .8rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .add-row input {
+    padding: 16px;
+    font-size: 1.05rem;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    min-width: 0;
+  }
+  .add-row input.name { flex: 1.4; }
+  .add-row input.price { flex: 1; }
+  .add-row button {
+    padding: 0 20px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .item-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .item-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.05rem;
+  }
+  .item-list li:last-child { border-bottom: none; }
+  .item-price { color: var(--muted); margin-right: 8px; }
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .empty-msg {
+    color: var(--muted);
+    text-align: center;
+    padding: 16px 0;
+    font-size: .95rem;
+  }
+  .reset-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--muted);
+    background: none;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+  <h1>🛒 장보기 예산 계산기</h1>
+
+  <div id="storageWarning">
+    ⚠️ 이 브라우저에서는 저장이 안 돼요. 창을 닫으면 목록이 초기화될 수 있습니다.
+  </div>
+
+  <div class="budget-card">
+    <label for="budgetInput">오늘 예산</label>
+    <input type="number" id="budgetInput" inputmode="numeric" placeholder="0">
+  </div>
+
+  <div class="remaining-card" id="remainingCard">
+    <div class="remaining-label">남은 예산</div>
+    <div class="remaining-value" id="remainingValue">0원</div>
+    <div class="remaining-sub" id="remainingSub"></div>
+  </div>
+
+  <div class="card">
+    <div class="add-row">
+      <input type="text" class="name" id="itemNameInput" placeholder="물건 이름">
+      <input type="number" class="price" id="itemPriceInput" inputmode="numeric" placeholder="가격">
+      <button id="addButton">추가</button>
+    </div>
+    <ul class="item-list" id="itemList"></ul>
+  </div>
+
+  <button class="reset-btn" id="resetButton">오늘 장보기 초기화</button>
+
+  <script>
+    const BUDGET_KEY = 'grocery-budget-amount';
+    const ITEMS_KEY = 'grocery-budget-items';
+
+    let storageOK = true;
+    function safeGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw !== null ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        storageOK = false;
+        return fallback;
+      }
+    }
+    function saveBudget() {
+      try {
+        localStorage.setItem(BUDGET_KEY, JSON.stringify(budget));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+    function saveItems() {
+      try {
+        localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
+      } catch (e) {
+        storageOK = false;
+      }
+      if (!storageOK) warningEl.style.display = 'block';
+    }
+
+    let budget = safeGet(BUDGET_KEY, 0);
+    let items = safeGet(ITEMS_KEY, []);
+
+    const budgetInputEl = document.getElementById('budgetInput');
+    const remainingCardEl = document.getElementById('remainingCard');
+    const remainingValueEl = document.getElementById('remainingValue');
+    const remainingSubEl = document.getElementById('remainingSub');
+    const itemListEl = document.getElementById('itemList');
+    const itemNameInputEl = document.getElementById('itemNameInput');
+    const itemPriceInputEl = document.getElementById('itemPriceInput');
+    const addButtonEl = document.getElementById('addButton');
+    const resetButtonEl = document.getElementById('resetButton');
+    const warningEl = document.getElementById('storageWarning');
+
+    if (budget > 0) budgetInputEl.value = budget;
+
+    function won(n) {
+      const rounded = Math.round(n);
+      const sign = rounded < 0 ? '-' : '';
+      return sign + Math.abs(rounded).toLocaleString('ko-KR') + '원';
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function flashInput(el, message) {
+      const original = el.placeholder;
+      el.placeholder = message;
+      el.style.borderColor = '#e2622f';
+      setTimeout(() => {
+        el.placeholder = original;
+        el.style.borderColor = '';
+      }, 1500);
+    }
+
+    function renderItems() {
+      itemListEl.innerHTML = '';
+
+      if (items.length === 0) {
+        itemListEl.innerHTML = '<div class="empty-msg">담은 물건이 없어요</div>';
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escapeHtml(item.name)}</span>`;
+
+        const right = document.createElement('span');
+        const priceSpan = document.createElement('span');
+        priceSpan.className = 'item-price';
+        priceSpan.textContent = won(item.price);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '×';
+        delBtn.onclick = () => {
+          items.splice(index, 1);
+          saveItems();
+          renderAll();
+        };
+
+        right.appendChild(priceSpan);
+        right.appendChild(delBtn);
+        li.appendChild(right);
+        itemListEl.appendChild(li);
+      });
+    }
+
+    function renderRemaining() {
+      const spent = items.reduce((sum, item) => sum + item.price, 0);
+      const remaining = budget - spent;
+
+      remainingValueEl.textContent = won(remaining);
+      remainingSubEl.textContent = `예산 ${won(budget)} 중 ${won(spent)} 사용`;
+      remainingCardEl.classList.toggle('over', remaining < 0);
+    }
+
+    function renderAll() {
+      renderItems();
+      renderRemaining();
+    }
+
+    budgetInputEl.addEventListener('input', () => {
+      const v = parseFloat(budgetInputEl.value);
+      budget = isNaN(v) ? 0 : v;
+      saveBudget();
+      renderRemaining();
+    });
+
+    function addItem() {
+      const name = itemNameInputEl.value.trim();
+      const price = parseFloat(itemPriceInputEl.value);
+
+      if (!name) {
+        flashInput(itemNameInputEl, '물건 이름을 입력해주세요');
+        return;
+      }
+      if (!itemPriceInputEl.value || isNaN(price) || price < 0) {
+        flashInput(itemPriceInputEl, '가격을 입력해주세요');
+        return;
+      }
+
+      items.push({ name, price });
+      itemNameInputEl.value = '';
+      itemPriceInputEl.value = '';
+      saveItems();
+      renderAll();
+      itemNameInputEl.focus();
+    }
+
+    addButtonEl.onclick = addItem;
+    [itemNameInputEl, itemPriceInputEl].forEach(el => {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') addItem();
+      });
+    });
+
+    resetButtonEl.onclick = () => {
+      if (items.length === 0 && budget === 0) return;
+      if (!confirm('예산과 담은 물건을 모두 지울까요?')) return;
+      budget = 0;
+      items = [];
+      budgetInputEl.value = '';
+      saveBudget();
+      saveItems();
+      renderAll();
+    };
+
+    if (!storageOK) warningEl.style.display = 'block';
+    renderAll();
+  </script>
+
+</body>
+</html>
