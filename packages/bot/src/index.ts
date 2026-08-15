@@ -3,6 +3,7 @@ import { CronJob } from 'cron';
 import { ContentAgent } from './agents/content.agent';
 import { TelegramService } from './services/telegram.service';
 import { supabase, testConnection, savePost } from '../../shared/src/utils/supabase';
+import { startDashboardServer } from './server';
 
 dotenv.config({ path: '../../.env' });
 dotenv.config({ path: '.env' });
@@ -130,6 +131,8 @@ async function main() {
     });
     console.log(`✅ 콘텐츠 생성 스케줄: "${CONTENT_CRON_SCHEDULE}" (${CRON_TIMEZONE})`);
     console.log(`✅ 일일 리포트 스케줄: "${REPORT_CRON_SCHEDULE}" (${CRON_TIMEZONE})\n`);
+
+    startDashboardServer();
 
     console.log('🎉 Bot이 정상적으로 작동 중입니다. (계속 실행됨)');
   } catch (error) {
