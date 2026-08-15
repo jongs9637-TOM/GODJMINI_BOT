@@ -4,12 +4,36 @@ export class TelegramService {
   private bot: TelegramBot;
   private chatId: string;
 
-  constructor(botToken: string, chatId: string) {
+  constructor(botToken: string, chatId: string, enablePolling = false) {
     if (!botToken || !chatId) {
       throw new Error('❌ Telegram 토큰이나 Chat ID가 없습니다!');
     }
-    this.bot = new TelegramBot(botToken, { polling: false });
+    this.bot = enablePolling
+      ? new TelegramBot(botToken, { polling: true })
+      : new TelegramBot(botToken, { polling: false });
     this.chatId = chatId;
+
+    if (enablePolling) {
+      this.bot.on('polling_error', error => {
+        console.error('❌ Telegram polling 오류:', error);
+      });
+    }
+  }
+
+  // 등록한 명령어를 처리. 보안을 위해 설정된 chatId에서 온 메시지만 반응한다.
+  onCommand(command: string, handler: () => Promise<void> | void): void {
+    this.bot.onText(new RegExp(`^/${command}(@\\S+)?\\s*$`), async msg => {
+      if (String(msg.chat.id) !== this.chatId) {
+        console.warn(`⚠️ 알 수 없는 chat(${msg.chat.id})에서 /${command} 시도 - 무시함`);
+        return;
+      }
+      try {
+        await handler();
+      } catch (error) {
+        console.error(`❌ /${command} 처리 중 오류:`, error);
+        await this.sendMessage(`⚠️ /${command} 처리 중 오류가 발생했습니다: ${error}`);
+      }
+    });
   }
 
   async sendMessage(message: string): Promise<void> {
