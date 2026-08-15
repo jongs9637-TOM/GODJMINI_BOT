@@ -1,6 +1,7 @@
 import { CronTime } from 'cron';
 import { supabase } from '../../../shared/src/utils/supabase';
 import { escapeHtml, stubPage } from './layout';
+import { BotSettings } from './settings';
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -191,8 +192,31 @@ export function analyticsStub(): string {
   );
 }
 
-export function settingsStub(): string {
-  return stubPage('⚙️', '설정 (준비 중)', '지금은 모든 설정을 Railway 환경변수로 관리합니다. 웹에서 바로 바꾸는 화면은 아직 없습니다.');
+export function renderSettingsBody(settings: BotSettings, saved: boolean): string {
+  const field = (label: string, name: string, value: string, hint?: string) => `
+    <div class="card" style="margin-bottom:14px;">
+      <label style="font-size:.8rem; font-weight:600; display:block; margin-bottom:6px;">${escapeHtml(label)}</label>
+      <input name="${name}" value="${escapeHtml(value)}" style="width:100%; padding:9px; border-radius:8px; border:1px solid var(--border); font-size:.85rem; font-family:inherit;">
+      ${hint ? `<div style="font-size:.7rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(hint)}</div>` : ''}
+    </div>`;
+
+  return `
+    ${
+      saved
+        ? `<div class="card" style="background:var(--green-light-bg); color:var(--green-light-text); margin-bottom:14px; font-weight:600;">✅ 저장되었습니다. 스케줄에 즉시 반영됩니다.</div>`
+        : ''
+    }
+    <form method="POST" action="/settings">
+      ${field('콘텐츠 생성/게시 주기 (cron 표현식)', 'contentCronSchedule', settings.contentCronSchedule, '예: 0 9,14,20 * * * (매일 9시/14시/20시)')}
+      ${field('일일 리포트 시각 (cron 표현식)', 'reportCronSchedule', settings.reportCronSchedule, '예: 0 21 * * * (매일 21시)')}
+      ${field('타임존', 'cronTimezone', settings.cronTimezone)}
+      <div class="card" style="margin-bottom:14px;">
+        <label style="font-size:.8rem; font-weight:600; display:block; margin-bottom:6px;">주제 목록 (한 줄에 하나씩)</label>
+        <textarea name="topics" rows="6" style="width:100%; padding:9px; border-radius:8px; border:1px solid var(--border); font-size:.85rem; font-family:inherit;">${escapeHtml(settings.topics.join('\n'))}</textarea>
+        <div style="font-size:.7rem; color:var(--text-muted); margin-top:4px;">매 실행마다 이 목록에서 무작위로 하나를 골라 콘텐츠를 생성합니다.</div>
+      </div>
+      <button class="btn" type="submit" style="background:var(--green-dark); color:#fff; border:none;">저장</button>
+    </form>`;
 }
 
 export function backupStub(): string {

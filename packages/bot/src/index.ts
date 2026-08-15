@@ -1,5 +1,4 @@
 import * as dotenv from 'dotenv';
-import { CronJob } from 'cron';
 import { ContentAgent } from './agents/content.agent';
 import { PublisherAgent } from './agents/publisher.agent';
 import { TelegramService } from './services/telegram.service';
@@ -12,22 +11,11 @@ import {
 } from '../../shared/src/utils/supabase';
 import { startDashboardServer } from './server';
 import { isAutomationPaused } from './dashboard/state';
+import { getSettings, loadSettings } from './dashboard/settings';
+import { registerTickHandlers, scheduleJobs } from './scheduler';
 
 dotenv.config({ path: '../../.env' });
 dotenv.config({ path: '.env' });
-
-const TOPICS = [
-  'Threads 자동화 봇',
-  'AI 시대의 효율성',
-  '하루 100개 포스팅',
-];
-
-// 콘텐츠 생성/게시 주기 (기본: 하루 3회 - 09시/14시/20시). 실제 계정에 게시되므로 과도하게 높이지 않는 것을 권장.
-// 바꾸려면 Railway 환경변수 CONTENT_CRON_SCHEDULE에 cron 표현식 설정
-const CONTENT_CRON_SCHEDULE = process.env.CONTENT_CRON_SCHEDULE || '0 9,14,20 * * *';
-// 일일 리포트 시각 (기본: 매일 21:00). 바꾸려면 REPORT_CRON_SCHEDULE 설정
-const REPORT_CRON_SCHEDULE = process.env.REPORT_CRON_SCHEDULE || '0 21 * * *';
-const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'Asia/Seoul';
 
 let telegram: TelegramService;
 let contentAgent: ContentAgent;
@@ -39,7 +27,8 @@ async function generateAndSaveContent() {
     return;
   }
 
-  const topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+  const topics = getSettings().topics;
+  const topic = topics[Math.floor(Math.random() * topics.length)];
   console.log(`\n📝 주제: ${topic}`);
 
   try {
@@ -146,21 +135,11 @@ async function main() {
     publisher = new PublisherAgent();
     console.log('✅ ContentAgent 준비 완료\n');
 
-    console.log('5️⃣ 스케줄러 등록 중...');
-    CronJob.from({
-      cronTime: CONTENT_CRON_SCHEDULE,
-      onTick: generateAndSaveContent,
-      start: true,
-      timeZone: CRON_TIMEZONE,
-    });
-    CronJob.from({
-      cronTime: REPORT_CRON_SCHEDULE,
-      onTick: sendDailyReport,
-      start: true,
-      timeZone: CRON_TIMEZONE,
-    });
-    console.log(`✅ 콘텐츠 생성 스케줄: "${CONTENT_CRON_SCHEDULE}" (${CRON_TIMEZONE})`);
-    console.log(`✅ 일일 리포트 스케줄: "${REPORT_CRON_SCHEDULE}" (${CRON_TIMEZONE})\n`);
+    console.log('5️⃣ 설정 로드 및 스케줄러 등록 중...');
+    await loadSettings();
+    registerTickHandlers(generateAndSaveContent, sendDailyReport);
+    scheduleJobs();
+    console.log('');
 
     startDashboardServer();
 

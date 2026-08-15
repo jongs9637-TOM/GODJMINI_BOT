@@ -61,3 +61,15 @@ export async function updatePostStatus(id: number, status: string, errorMessage?
 export async function saveAnalytics(data: any) {
   return await supabase.from('daily_analytics').upsert(data);
 }
+
+export async function getAllSettings(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from('bot_settings').select('key, value');
+  if (error || !data) return {};
+  return Object.fromEntries(data.map((row: any) => [row.key, row.value ?? '']));
+}
+
+export async function setSetting(key: string, value: string) {
+  return await supabase
+    .from('bot_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+}

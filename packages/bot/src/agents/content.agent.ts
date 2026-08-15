@@ -17,7 +17,7 @@ export class ContentAgent {
     try {
       const response = await this.client.messages.create({
         model: this.model,
-        max_tokens: 300,
+        max_tokens: 800,
         messages: [
           {
             role: 'user',
@@ -36,6 +36,10 @@ export class ContentAgent {
 
       const textBlock = response.content.find(block => block.type === 'text');
       const content = textBlock?.type === 'text' ? textBlock.text : '';
+
+      if (response.stop_reason === 'max_tokens') {
+        console.warn('⚠️ max_tokens 제한으로 콘텐츠가 중간에 잘렸을 수 있습니다.');
+      }
 
       console.log('✅ 콘텐츠 생성 완료');
       return content;

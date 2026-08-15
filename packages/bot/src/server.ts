@@ -6,12 +6,14 @@ import {
   renderContentBody,
   renderActivityBody,
   renderConnectionBody,
+  renderSettingsBody,
   commentsStub,
   analyticsStub,
-  settingsStub,
   backupStub,
 } from './dashboard/pages';
 import { isAutomationPaused, setAutomationPaused } from './dashboard/state';
+import { getSettings, saveSettings } from './dashboard/settings';
+import { scheduleJobs } from './scheduler';
 
 const DASHBOARD_USER = process.env.DASHBOARD_USER;
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
@@ -28,6 +30,22 @@ function checkAuth(req: http.IncomingMessage): boolean {
   const pass = decoded.slice(separatorIndex + 1);
 
   return user === DASHBOARD_USER && pass === DASHBOARD_PASSWORD;
+}
+
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => (data += chunk));
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+function parseTopicsField(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map(t => t.trim())
+    .filter(Boolean);
 }
 
 const PAGES: Record<string, { nav: NavKey; title: string; subtitle: string; render: () => Promise<string> | string }> = {
@@ -57,7 +75,6 @@ const PAGES: Record<string, { nav: NavKey; title: string; subtitle: string; rend
   },
   '/comments': { nav: 'comments', title: '댓글', subtitle: '', render: commentsStub },
   '/analytics': { nav: 'analytics', title: '성과 분석', subtitle: '', render: analyticsStub },
-  '/settings': { nav: 'settings', title: '설정', subtitle: '', render: settingsStub },
   '/backup': { nav: 'backup', title: '백업', subtitle: '', render: backupStub },
 };
 
@@ -80,10 +97,11 @@ export function startDashboardServer() {
       return;
     }
 
-    const url = req.url || '/';
+    const parsedUrl = new URL(req.url || '/', 'http://internal');
+    const pathname = parsedUrl.pathname;
 
-    if (req.method === 'POST' && (url === '/api/automation/pause' || url === '/api/automation/resume')) {
-      const paused = url === '/api/automation/pause';
+    if (req.method === 'POST' && (pathname === '/api/automation/pause' || pathname === '/api/automation/resume')) {
+      const paused = pathname === '/api/automation/pause';
       setAutomationPaused(paused);
       await logActivity('1', paused ? 'automation_paused' : 'automation_resumed');
       res.writeHead(303, { Location: '/' });
@@ -91,7 +109,37 @@ export function startDashboardServer() {
       return;
     }
 
-    const page = PAGES[url];
+    if (pathname === '/settings') {
+      try {
+        if (req.method === 'POST') {
+          const body = await readBody(req);
+          const params = new URLSearchParams(body);
+          await saveSettings({
+            contentCronSchedule: params.get('contentCronSchedule') || getSettings().contentCronSchedule,
+            reportCronSchedule: params.get('reportCronSchedule') || getSettings().reportCronSchedule,
+            cronTimezone: params.get('cronTimezone') || getSettings().cronTimezone,
+            topics: parseTopicsField(params.get('topics') || ''),
+          });
+          scheduleJobs();
+          await logActivity('1', 'settings_updated');
+          res.writeHead(303, { Location: '/settings?saved=1' });
+          res.end();
+          return;
+        }
+
+        const saved = parsedUrl.searchParams.get('saved') === '1';
+        const body = renderSettingsBody(getSettings(), saved);
+        const html = renderShell('settings', '설정', '자동화 스케줄과 주제 목록을 관리합니다.', body, isAutomationPaused());
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(`설정 페이지 로딩 실패: ${error}`);
+      }
+      return;
+    }
+
+    const page = PAGES[pathname];
     if (page) {
       try {
         const body = await page.render();
