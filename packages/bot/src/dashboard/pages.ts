@@ -3,6 +3,7 @@ import { supabase, getPostedThreads } from '../../../shared/src/utils/supabase';
 import { escapeHtml, stubPage } from './layout';
 import { BotSettings } from './settings';
 import { FetchCommentsResult } from '../agents/comments.agent';
+import { FetchStatsResult } from '../agents/analytics.agent';
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -234,12 +235,62 @@ export function renderCommentsDetailBody(
     ${comments.length > 0 ? `<ul style="list-style:none; padding:0; margin:0;">${list}</ul>` : '<div class="empty">댓글이 없습니다</div>'}`;
 }
 
-export function analyticsStub(): string {
-  return stubPage(
-    '📊',
-    '성과 분석 (준비 중)',
-    '조회수·좋아요 같은 실제 인사이트는 Meta의 공식 Threads API 연동이 필요해서 아직 붙어있지 않습니다.'
-  );
+export async function renderAnalyticsIndexBody(): Promise<string> {
+  const { data: posts } = await getPostedThreads(20);
+
+  if (!posts || posts.length === 0) {
+    return stubPage(
+      '📊',
+      '아직 볼 수 있는 게시물이 없습니다',
+      '실제로 게시된 글이 있어야 성과를 확인할 수 있습니다. 첫 게시가 완료되면 여기 목록이 채워집니다.'
+    );
+  }
+
+  const rows = posts
+    .map(
+      (post: any) => `<tr>
+        <td class="content-cell">${escapeHtml((post.content || '').slice(0, 80))}${(post.content || '').length > 80 ? '…' : ''}</td>
+        <td>${formatTime(post.created_at)}</td>
+        <td><a class="link" href="/analytics?postId=${post.id}">통계 보기</a></td>
+      </tr>`
+    )
+    .join('');
+
+  return `
+    <div class="card" style="background:var(--warn-bg); margin-bottom:14px; font-size:.78rem; color:#8a6a1f;">
+      ⚠️ Meta 공식 API가 아니라 화면을 읽어오는 방식이라 숫자가 부정확하거나 실패할 수 있습니다.
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table><thead><tr><th>내용</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+
+export function renderAnalyticsDetailBody(
+  post: { id: number; content: string; threads_post_id: string },
+  result: FetchStatsResult
+): string {
+  const back = `<a class="link" href="/analytics">← 목록으로</a>`;
+
+  if (!result.success) {
+    return `<div style="margin-bottom:12px;">${back}</div>
+      <div class="card" style="background:var(--danger-bg); color:var(--danger-text);">
+        통계를 가져오지 못했습니다.<br><span style="font-size:.8rem;">${escapeHtml(result.error || '알 수 없는 오류')}</span>
+      </div>`;
+  }
+
+  const stats = result.stats || { likes: null, replies: null, reposts: null };
+  const fmt = (n: number | null) => (n === null ? '?' : n.toLocaleString('ko-KR'));
+
+  return `<div style="margin-bottom:12px;">${back}</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-size:.72rem; color:var(--text-muted); margin-bottom:4px;">원글</div>
+      <div style="white-space:pre-wrap; font-size:.85rem;">${escapeHtml(post.content)}</div>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="label">좋아요</div><div class="num">${fmt(stats.likes)}</div></div>
+      <div class="card"><div class="label">답글</div><div class="num">${fmt(stats.replies)}</div></div>
+      <div class="card"><div class="label">리포스트</div><div class="num">${fmt(stats.reposts)}</div></div>
+    </div>`;
 }
 
 export function renderSettingsBody(settings: BotSettings, saved: boolean): string {
@@ -269,6 +320,13 @@ export function renderSettingsBody(settings: BotSettings, saved: boolean): strin
     </form>`;
 }
 
-export function backupStub(): string {
-  return stubPage('🗄️', '백업 (준비 중)', '별도 백업 기능은 아직 없습니다. 데이터는 Supabase에 저장되어 있습니다.');
+export function renderBackupBody(): string {
+  return `<div class="card">
+    <div style="font-weight:700; margin-bottom:8px;">전체 데이터 내보내기</div>
+    <div style="font-size:.82rem; color:var(--text-muted); margin-bottom:14px; line-height:1.7;">
+      계정, 콘텐츠, 작업 기록, 설정을 하나의 JSON 파일로 다운로드합니다.
+      Supabase 자체 백업과는 별개로, 필요할 때 수동으로 스냅샷을 받아두는 용도입니다.
+    </div>
+    <a class="btn" style="background:var(--green-dark); color:#fff; border:none; text-decoration:none; display:inline-block;" href="/backup/download">JSON 다운로드</a>
+  </div>`;
 }

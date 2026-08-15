@@ -92,3 +92,20 @@ export async function setSetting(key: string, value: string) {
     .from('bot_settings')
     .upsert({ key, value, updated_at: new Date().toISOString() });
 }
+
+export async function exportAllData() {
+  const [posts, activity, settings, accounts] = await Promise.all([
+    supabase.from('threads_posts').select('*').order('created_at', { ascending: false }),
+    supabase.from('activity_logs').select('*').order('created_at', { ascending: false }),
+    supabase.from('bot_settings').select('*'),
+    supabase.from('accounts').select('*'),
+  ]);
+
+  return {
+    exported_at: new Date().toISOString(),
+    accounts: accounts.data || [],
+    threads_posts: posts.data || [],
+    activity_logs: activity.data || [],
+    bot_settings: settings.data || [],
+  };
+}

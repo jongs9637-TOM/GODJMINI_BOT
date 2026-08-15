@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { logActivity, getPostById } from '../../shared/src/utils/supabase';
+import { logActivity, getPostById, exportAllData } from '../../shared/src/utils/supabase';
 import { renderShell, NavKey } from './dashboard/layout';
 import {
   renderDashboardBody,
@@ -9,15 +9,18 @@ import {
   renderSettingsBody,
   renderCommentsIndexBody,
   renderCommentsDetailBody,
-  analyticsStub,
-  backupStub,
+  renderAnalyticsIndexBody,
+  renderAnalyticsDetailBody,
+  renderBackupBody,
 } from './dashboard/pages';
 import { isAutomationPaused, setAutomationPaused } from './dashboard/state';
 import { getSettings, saveSettings } from './dashboard/settings';
 import { scheduleJobs } from './scheduler';
 import { CommentsAgent } from './agents/comments.agent';
+import { AnalyticsAgent } from './agents/analytics.agent';
 
 const commentsAgent = new CommentsAgent();
+const analyticsAgent = new AnalyticsAgent();
 
 const DASHBOARD_USER = process.env.DASHBOARD_USER;
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
@@ -77,8 +80,6 @@ const PAGES: Record<string, { nav: NavKey; title: string; subtitle: string; rend
     subtitle: '게시에 사용되는 Threads 세션 상태입니다.',
     render: renderConnectionBody,
   },
-  '/analytics': { nav: 'analytics', title: '성과 분석', subtitle: '', render: analyticsStub },
-  '/backup': { nav: 'backup', title: '백업', subtitle: '', render: backupStub },
 };
 
 export function startDashboardServer() {
@@ -166,6 +167,56 @@ export function startDashboardServer() {
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end(`댓글 페이지 로딩 실패: ${error}`);
       }
+      return;
+    }
+
+    if (pathname === '/analytics') {
+      try {
+        const postId = parsedUrl.searchParams.get('postId');
+        let body: string;
+
+        if (postId) {
+          const { data: post } = await getPostById(Number(postId));
+          if (!post || !post.threads_post_id) {
+            body = `<div class="card">해당 게시물을 찾을 수 없습니다. <a class="link" href="/analytics">목록으로</a></div>`;
+          } else {
+            const result = await analyticsAgent.fetchStats(post.threads_post_id);
+            body = renderAnalyticsDetailBody(post as any, result);
+          }
+        } else {
+          body = await renderAnalyticsIndexBody();
+        }
+
+        const html = renderShell('analytics', '성과 분석', '게시물의 좋아요/답글/리포스트 수를 확인합니다.', body, isAutomationPaused());
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(`성과 분석 페이지 로딩 실패: ${error}`);
+      }
+      return;
+    }
+
+    if (pathname === '/backup/download') {
+      try {
+        const data = await exportAllData();
+        const filename = `automation-hub-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        });
+        res.end(JSON.stringify(data, null, 2));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(`백업 생성 실패: ${error}`);
+      }
+      return;
+    }
+
+    if (pathname === '/backup') {
+      const html = renderShell('backup', '백업', '전체 데이터를 JSON으로 내보냅니다.', renderBackupBody(), isAutomationPaused());
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
       return;
     }
 
