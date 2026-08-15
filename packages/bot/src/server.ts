@@ -48,11 +48,15 @@ async function renderDashboard(): Promise<string> {
   const rows = (recentPosts || [])
     .map((post: any) => {
       const raw = post.content || '';
-      const preview = escapeHtml(raw.slice(0, 100)) + (raw.length > 100 ? '…' : '');
+      const full = escapeHtml(raw);
       const time = new Date(post.created_at).toLocaleString('ko-KR', {
         timeZone: 'Asia/Seoul',
       });
-      return `<li><div class="time">${time} · ${escapeHtml(post.status)}</div><div class="content">${preview}</div></li>`;
+      const toggle =
+        raw.length > 120
+          ? `<button class="toggle" onclick="const w=this.parentElement;w.classList.toggle('expanded');this.textContent=w.classList.contains('expanded')?'접기':'더보기'">더보기</button>`
+          : '';
+      return `<li><div class="time">${time} · ${escapeHtml(post.status)}</div><div class="content-wrap"><div class="content">${full}</div>${toggle}</div></li>`;
     })
     .join('');
 
@@ -73,7 +77,9 @@ async function renderDashboard(): Promise<string> {
   ul { list-style:none; padding:0; margin:0; }
   li { background:#1b1e26; border-radius:10px; padding:10px 12px; margin-bottom:8px; }
   .time { font-size:.7rem; color:#8ab4f8; margin-bottom:4px; }
-  .content { font-size:.9rem; white-space:pre-wrap; word-break:break-word; }
+  .content-wrap .content { font-size:.9rem; white-space:pre-wrap; word-break:break-word; max-height:4.8em; overflow:hidden; }
+  .content-wrap.expanded .content { max-height:none; }
+  .toggle { background:none; border:none; color:#8ab4f8; font-size:.8rem; padding:6px 0 0; margin:0; cursor:pointer; }
   .empty { color:#777; text-align:center; padding:20px; }
 </style>
 </head>
