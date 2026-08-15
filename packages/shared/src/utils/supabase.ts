@@ -51,11 +51,30 @@ export async function savePost(data: any) {
   return await supabase.from('threads_posts').insert(data).select().single();
 }
 
-export async function updatePostStatus(id: number, status: string, errorMessage?: string) {
+export async function updatePostStatus(
+  id: number,
+  status: string,
+  errorMessage?: string,
+  threadsPostId?: string
+) {
+  const update: Record<string, any> = { status, error_message: errorMessage };
+  if (threadsPostId) update.threads_post_id = threadsPostId;
+
+  return await supabase.from('threads_posts').update(update).eq('id', id);
+}
+
+export async function getPostedThreads(limit = 20) {
   return await supabase
     .from('threads_posts')
-    .update({ status, error_message: errorMessage })
-    .eq('id', id);
+    .select('id, content, threads_post_id, created_at')
+    .eq('status', 'posted')
+    .not('threads_post_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+}
+
+export async function getPostById(id: number) {
+  return await supabase.from('threads_posts').select('id, content, threads_post_id').eq('id', id).maybeSingle();
 }
 
 export async function saveAnalytics(data: any) {

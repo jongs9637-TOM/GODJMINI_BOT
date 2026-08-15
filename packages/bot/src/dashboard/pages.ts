@@ -1,7 +1,8 @@
 import { CronTime } from 'cron';
-import { supabase } from '../../../shared/src/utils/supabase';
+import { supabase, getPostedThreads } from '../../../shared/src/utils/supabase';
 import { escapeHtml, stubPage } from './layout';
 import { BotSettings } from './settings';
+import { FetchCommentsResult } from '../agents/comments.agent';
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -180,8 +181,57 @@ export async function renderConnectionBody(): Promise<string> {
   }</div>`;
 }
 
-export function commentsStub(): string {
-  return stubPage('💬', '댓글 관리 (준비 중)', 'Threads 댓글을 가져오고 자동으로 답글을 다는 기능은 아직 구현되지 않았습니다.');
+export async function renderCommentsIndexBody(): Promise<string> {
+  const { data: posts } = await getPostedThreads(20);
+
+  if (!posts || posts.length === 0) {
+    return stubPage(
+      '💬',
+      '아직 볼 수 있는 게시물이 없습니다',
+      '실제로 게시된 글이 있어야 댓글을 가져올 수 있습니다. 첫 게시가 완료되면 여기 목록이 채워집니다.'
+    );
+  }
+
+  const rows = posts
+    .map(
+      (post: any) => `<tr>
+        <td class="content-cell">${escapeHtml((post.content || '').slice(0, 80))}${(post.content || '').length > 80 ? '…' : ''}</td>
+        <td>${formatTime(post.created_at)}</td>
+        <td><a class="link" href="/comments?postId=${post.id}">댓글 보기</a></td>
+      </tr>`
+    )
+    .join('');
+
+  return `<div class="card" style="padding:0; overflow:hidden;">
+    <table><thead><tr><th>내용</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+}
+
+export function renderCommentsDetailBody(
+  post: { id: number; content: string; threads_post_id: string },
+  result: FetchCommentsResult
+): string {
+  const back = `<a class="link" href="/comments">← 목록으로</a>`;
+
+  if (!result.success) {
+    return `<div style="margin-bottom:12px;">${back}</div>
+      <div class="card" style="background:var(--danger-bg); color:var(--danger-text);">
+        댓글을 가져오지 못했습니다.<br><span style="font-size:.8rem;">${escapeHtml(result.error || '알 수 없는 오류')}</span>
+      </div>`;
+  }
+
+  const comments = result.comments || [];
+  const list = comments
+    .map(c => `<li class="card" style="margin-bottom:8px; white-space:pre-wrap; font-size:.85rem;">${escapeHtml(c)}</li>`)
+    .join('');
+
+  return `<div style="margin-bottom:12px;">${back}</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-size:.72rem; color:var(--text-muted); margin-bottom:4px;">원글</div>
+      <div style="white-space:pre-wrap; font-size:.85rem;">${escapeHtml(post.content)}</div>
+    </div>
+    <h2>댓글 ${comments.length}개</h2>
+    ${comments.length > 0 ? `<ul style="list-style:none; padding:0; margin:0;">${list}</ul>` : '<div class="empty">댓글이 없습니다</div>'}`;
 }
 
 export function analyticsStub(): string {

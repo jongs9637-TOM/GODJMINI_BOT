@@ -52,7 +52,7 @@ async function generateAndSaveContent() {
     const result = await publisher.publish(content);
 
     if (result.success) {
-      await updatePostStatus(post.id, 'posted');
+      await updatePostStatus(post.id, 'posted', undefined, result.postUrl);
       await logActivity('1', 'threads_posted', String(post.id));
       console.log('✅ Threads 게시 완료');
       await telegram.notifySuccess(`Threads에 게시 완료: "${topic}"`);

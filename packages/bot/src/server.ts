@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { logActivity } from '../../shared/src/utils/supabase';
+import { logActivity, getPostById } from '../../shared/src/utils/supabase';
 import { renderShell, NavKey } from './dashboard/layout';
 import {
   renderDashboardBody,
@@ -7,13 +7,17 @@ import {
   renderActivityBody,
   renderConnectionBody,
   renderSettingsBody,
-  commentsStub,
+  renderCommentsIndexBody,
+  renderCommentsDetailBody,
   analyticsStub,
   backupStub,
 } from './dashboard/pages';
 import { isAutomationPaused, setAutomationPaused } from './dashboard/state';
 import { getSettings, saveSettings } from './dashboard/settings';
 import { scheduleJobs } from './scheduler';
+import { CommentsAgent } from './agents/comments.agent';
+
+const commentsAgent = new CommentsAgent();
 
 const DASHBOARD_USER = process.env.DASHBOARD_USER;
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
@@ -73,7 +77,6 @@ const PAGES: Record<string, { nav: NavKey; title: string; subtitle: string; rend
     subtitle: '게시에 사용되는 Threads 세션 상태입니다.',
     render: renderConnectionBody,
   },
-  '/comments': { nav: 'comments', title: '댓글', subtitle: '', render: commentsStub },
   '/analytics': { nav: 'analytics', title: '성과 분석', subtitle: '', render: analyticsStub },
   '/backup': { nav: 'backup', title: '백업', subtitle: '', render: backupStub },
 };
@@ -135,6 +138,33 @@ export function startDashboardServer() {
       } catch (error) {
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end(`설정 페이지 로딩 실패: ${error}`);
+      }
+      return;
+    }
+
+    if (pathname === '/comments') {
+      try {
+        const postId = parsedUrl.searchParams.get('postId');
+        let body: string;
+
+        if (postId) {
+          const { data: post } = await getPostById(Number(postId));
+          if (!post || !post.threads_post_id) {
+            body = `<div class="card">해당 게시물을 찾을 수 없습니다. <a class="link" href="/comments">목록으로</a></div>`;
+          } else {
+            const result = await commentsAgent.fetchComments(post.threads_post_id);
+            body = renderCommentsDetailBody(post as any, result);
+          }
+        } else {
+          body = await renderCommentsIndexBody();
+        }
+
+        const html = renderShell('comments', '댓글', '실제 게시물에 달린 댓글을 확인합니다 (읽기 전용).', body, isAutomationPaused());
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(`댓글 페이지 로딩 실패: ${error}`);
       }
       return;
     }

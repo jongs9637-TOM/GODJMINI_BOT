@@ -6,6 +6,7 @@ const LOCAL_SESSION_FILE = path.resolve(__dirname, '../../../../threads-session.
 
 export interface PublishResult {
   success: boolean;
+  postUrl?: string;
   error?: string;
 }
 
@@ -55,13 +56,36 @@ export class PublisherAgent {
       const postButton = page.getByRole('button', { name: /게시|^Post$/i }).last();
       await postButton.click({ timeout: 10000 });
 
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
-      return { success: true };
+      const postUrl = await this.resolvePostUrl(page);
+
+      return { success: true, postUrl };
     } catch (error) {
       return { success: false, error: String(error) };
     } finally {
       await browser?.close();
+    }
+  }
+
+  // 게시 직후 새 글의 URL을 찾는다. 정확한 셀렉터가 검증되지 않은 상태라 여러 방법을 순서대로 시도한다.
+  private async resolvePostUrl(page: import('playwright').Page): Promise<string | undefined> {
+    const currentUrl = page.url();
+    if (/\/post\//.test(currentUrl)) {
+      return currentUrl;
+    }
+
+    const username = process.env.THREADS_USERNAME;
+    if (!username) return undefined;
+
+    try {
+      await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'networkidle' });
+      const firstPostLink = page.locator('a[href*="/post/"]').first();
+      const href = await firstPostLink.getAttribute('href', { timeout: 5000 }).catch(() => null);
+      if (!href) return undefined;
+      return href.startsWith('http') ? href : `https://www.threads.com${href}`;
+    } catch {
+      return undefined;
     }
   }
 }
