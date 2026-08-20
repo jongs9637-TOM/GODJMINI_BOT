@@ -68,57 +68,50 @@ export class PublisherAgent {
     }
   }
 
-  // 게시 직후 새 글의 URL을 찾는다. 여러 방법을 순서대로 시도한다.
+  // 게시 직후 새 글의 URL을 찾는다.
   private async resolvePostUrl(page: import('playwright').Page): Promise<string | undefined> {
-    // 방법 1: 현재 페이지 URL이 이미 /post/인 경우
-    const currentUrl = page.url();
-    if (/\/post\//.test(currentUrl)) {
-      console.log(`✅ postUrl 추출 (방법1): ${currentUrl}`);
-      return currentUrl;
-    }
-
-    const username = process.env.THREADS_USERNAME;
-    if (!username) {
-      console.warn('⚠️ THREADS_USERNAME 환경변수가 없습니다.');
-      return undefined;
-    }
-
     try {
-      // 방법 2: 프로필 페이지에서 첫 번째 링크 추출
+      // 방법 1: 현재 페이지 URL이 이미 /post/인 경우
+      const currentUrl = page.url();
+      if (/\/post\//.test(currentUrl)) {
+        console.log(`✅ postUrl: ${currentUrl}`);
+        return currentUrl;
+      }
+
+      const username = process.env.THREADS_USERNAME;
+      if (!username) {
+        console.warn('⚠️ THREADS_USERNAME 없음');
+        return undefined;
+      }
+
+      // 방법 2: 프로필 페이지 방문 + 새로고침
+      console.log('🔍 프로필에서 게시물 URL 찾는 중...');
+      await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(2000);
-      await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'networkidle', timeout: 30000 });
-      await page.waitForTimeout(3000);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2000);
 
-      // 여러 셀렉터 시도
-      const selectors = [
-        'a[href*="/post/"]',
-        'a[href*="threads.com/"]',
-        '[data-testid*="post"] a',
-        'article a',
-      ];
+      // 모든 링크를 가져온 후 /post/ 포함한 첫 번째 반환
+      const allLinks = await page.locator('a').all();
+      console.log(`📍 발견한 링크 개수: ${allLinks.length}`);
 
-      for (const selector of selectors) {
+      for (const link of allLinks) {
         try {
-          const link = page.locator(selector).first();
-          const isVisible = await link.isVisible({ timeout: 2000 }).catch(() => false);
-
-          if (isVisible) {
-            const href = await link.getAttribute('href');
-            if (href && href.includes('/post/')) {
-              const fullUrl = href.startsWith('http') ? href : `https://www.threads.com${href}`;
-              console.log(`✅ postUrl 추출 (방법2-${selector}): ${fullUrl}`);
-              return fullUrl;
-            }
+          const href = await link.getAttribute('href').catch(() => null);
+          if (href && href.includes('/post/')) {
+            const fullUrl = href.startsWith('http') ? href : `https://www.threads.com${href}`;
+            console.log(`✅ postUrl 찾음: ${fullUrl}`);
+            return fullUrl;
           }
         } catch (e) {
           continue;
         }
       }
 
-      console.warn('⚠️ postUrl을 찾을 수 없습니다. 게시는 성공했지만 URL 추출 실패.');
+      console.warn('⚠️ /post/를 포함한 링크를 찾지 못했습니다.');
       return undefined;
     } catch (error) {
-      console.warn(`⚠️ postUrl 추출 중 오류: ${error}`);
+      console.error(`❌ postUrl 추출 오류: ${error}`);
       return undefined;
     }
   }
