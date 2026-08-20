@@ -10,6 +10,11 @@ export interface FetchCommentsResult {
   error?: string;
 }
 
+export interface ThreadsPost {
+  url: string;
+  timestamp: Date;
+}
+
 export class CommentsAgent {
   private getSessionState(): any {
     const encoded = process.env.THREADS_SESSION_STATE;
@@ -47,6 +52,50 @@ export class CommentsAgent {
       return Math.max(0, count - 1);
     } catch (error) {
       return null;
+    } finally {
+      await browser?.close();
+    }
+  }
+
+  async fetchPostsFromProfile(limit: number = 50): Promise<ThreadsPost[]> {
+    let browser: import('playwright').Browser | undefined;
+
+    try {
+      const storageState = this.getSessionState();
+      const username = process.env.THREADS_USERNAME;
+      if (!username) return [];
+
+      browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext({ storageState });
+      const page = await context.newPage();
+
+      await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'networkidle' });
+
+      const loginPrompt = page.getByText('로그인 또는 가입하기');
+      if (await loginPrompt.isVisible({ timeout: 5000 }).catch(() => false)) {
+        return [];
+      }
+
+      const posts: ThreadsPost[] = [];
+      const links = page.locator('a[href*="/post/"]');
+      const count = await links.count();
+
+      for (let i = 0; i < Math.min(count, limit); i++) {
+        try {
+          const href = await links.nth(i).getAttribute('href').catch(() => null);
+          if (!href) continue;
+
+          const url = href.startsWith('http') ? href : `https://www.threads.com${href}`;
+          posts.push({ url, timestamp: new Date() });
+        } catch (e) {
+          continue;
+        }
+      }
+
+      return posts;
+    } catch (error) {
+      console.warn(`⚠️ 프로필 게시물 조회 실패: ${error}`);
+      return [];
     } finally {
       await browser?.close();
     }

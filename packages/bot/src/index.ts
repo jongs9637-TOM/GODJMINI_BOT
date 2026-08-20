@@ -10,6 +10,7 @@ import {
   savePost,
   updatePostStatus,
   logActivity,
+  updateMissingThreadsPostIds,
 } from '../../shared/src/utils/supabase';
 import { startDashboardServer } from './server';
 import { isAutomationPaused } from './dashboard/state';
@@ -187,6 +188,18 @@ async function main() {
     contentAgent = new ContentAgent(process.env.CLAUDE_API_KEY!);
     publisher = new PublisherAgent();
     console.log('✅ ContentAgent 준비 완료\n');
+
+    console.log('4️⃣-1️⃣ 과거 게시물 threads_post_id 자동 업데이트...');
+    try {
+      const commentsAgent = new (await import('./agents/comments.agent')).CommentsAgent();
+      const posts = await commentsAgent.fetchPostsFromProfile(100);
+      if (posts.length > 0) {
+        await updateMissingThreadsPostIds(posts);
+      }
+    } catch (error) {
+      console.warn(`⚠️ 과거 게시물 업데이트 실패: ${error}`);
+    }
+    console.log('');
 
     telegram.onCommand('시황', handleMarketCommand);
     telegram.onCommand('상태', handleStatusCommand);

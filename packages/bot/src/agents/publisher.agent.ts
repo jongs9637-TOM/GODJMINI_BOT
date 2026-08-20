@@ -79,12 +79,23 @@ export class PublisherAgent {
     if (!username) return undefined;
 
     try {
-      await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(2000);
+      await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.waitForTimeout(2000);
+
       const firstPostLink = page.locator('a[href*="/post/"]').first();
-      const href = await firstPostLink.getAttribute('href', { timeout: 5000 }).catch(() => null);
-      if (!href) return undefined;
-      return href.startsWith('http') ? href : `https://www.threads.com${href}`;
-    } catch {
+      const href = await firstPostLink.getAttribute('href', { timeout: 10000 }).catch(() => null);
+
+      if (!href) {
+        console.warn('⚠️ postUrl 추출 실패 - 프로필 페이지에서 게시물 링크를 찾을 수 없습니다.');
+        return undefined;
+      }
+
+      const fullUrl = href.startsWith('http') ? href : `https://www.threads.com${href}`;
+      console.log(`✅ postUrl 추출 완료: ${fullUrl}`);
+      return fullUrl;
+    } catch (error) {
+      console.warn(`⚠️ postUrl 추출 중 오류: ${error}`);
       return undefined;
     }
   }

@@ -93,6 +93,38 @@ export async function setSetting(key: string, value: string) {
     .upsert({ key, value, updated_at: new Date().toISOString() });
 }
 
+export async function updateMissingThreadsPostIds(postUrls: Array<{ url: string; timestamp?: Date }>) {
+  if (postUrls.length === 0) return;
+
+  const { data: missingPosts } = await supabase
+    .from('threads_posts')
+    .select('id, created_at')
+    .eq('status', 'posted')
+    .is('threads_post_id', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (!missingPosts || missingPosts.length === 0) return;
+
+  let updated = 0;
+  for (let i = 0; i < Math.min(missingPosts.length, postUrls.length); i++) {
+    const post = missingPosts[i];
+    const url = postUrls[i].url;
+
+    const { error } = await supabase
+      .from('threads_posts')
+      .update({ threads_post_id: url })
+      .eq('id', post.id);
+
+    if (!error) {
+      updated++;
+      console.log(`✅ [${post.id}] threads_post_id 업데이트됨: ${url}`);
+    }
+  }
+
+  console.log(`📊 총 ${updated}개 게시물의 threads_post_id 업데이트 완료`);
+}
+
 export async function exportAllData() {
   const [posts, activity, settings, accounts] = await Promise.all([
     supabase.from('threads_posts').select('*').order('created_at', { ascending: false }),
