@@ -57,7 +57,7 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
       .limit(8),
     supabase
       .from('threads_posts')
-      .select('created_at, likes, replies, reposts')
+      .select('created_at, likes, replies, reposts, views')
       .eq('status', 'posted')
       .gte('created_at', sevenDaysAgo.toISOString())
       .order('created_at', { ascending: true }),
@@ -122,6 +122,7 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
          </div>
        </div>`;
 
+  const totalViews = (recentStats || []).reduce((s, p: any) => s + (p.views || 0), 0);
   const totalLikes = (recentStats || []).reduce((s, p: any) => s + (p.likes || 0), 0);
   const totalReplies = (recentStats || []).reduce((s, p: any) => s + (p.replies || 0), 0);
   const totalReposts = (recentStats || []).reduce((s, p: any) => s + (p.reposts || 0), 0);
@@ -186,9 +187,9 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
         <div class="sub">실패 ${failedToday ?? 0}개</div>
       </div>
       <div class="card">
-        <div class="label">⭐ 7일 반응</div>
-        <div class="num">${formatNumber(totalLikes)}</div>
-        <div class="sub">좋아요 · ${formatNumber(totalReplies)} 댓글</div>
+        <div class="label">👁 7일 조회</div>
+        <div class="num" style="color:#4a90e2;">${formatNumber(totalViews)}</div>
+        <div class="sub">좋아요 ${formatNumber(totalLikes)} · 댓글 ${formatNumber(totalReplies)}</div>
       </div>
     </div>
 
@@ -424,7 +425,7 @@ export function renderCommentsDetailBody(
     ${comments.length > 0 ? `<ul style="list-style:none; padding:0; margin:0;">${list}</ul>` : '<div class="empty">댓글이 없습니다</div>'}`;
 }
 
-export async function renderAnalyticsIndexBody(postsWithStats?: Array<{id: number; content: string; created_at: string; likes?: number | null; replies?: number | null; reposts?: number | null}>): Promise<string> {
+export async function renderAnalyticsIndexBody(postsWithStats?: Array<{id: number; content: string; created_at: string; likes?: number | null; replies?: number | null; reposts?: number | null; views?: number | null}>): Promise<string> {
   let posts = postsWithStats;
 
   if (!posts) {
@@ -441,15 +442,18 @@ export async function renderAnalyticsIndexBody(postsWithStats?: Array<{id: numbe
   }
 
   const fmt = (n: number | null | undefined) => (n === null || n === undefined ? '0' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n.toString());
+  const totalViews = posts.reduce((s: number, p: any) => s + (p.views || 0), 0);
   const totalLikes = posts.reduce((s: number, p: any) => s + (p.likes || 0), 0);
   const totalReplies = posts.reduce((s: number, p: any) => s + (p.replies || 0), 0);
   const totalReposts = posts.reduce((s: number, p: any) => s + (p.reposts || 0), 0);
+  const avgViews = posts.length > 0 ? Math.round(totalViews / posts.length) : 0;
   const avgLikes = posts.length > 0 ? Math.round(totalLikes / posts.length) : 0;
 
   const rows = posts
     .map(
       (post: any) => `<tr>
         <td class="content-cell"><span style="font-weight:500;">${escapeHtml((post.content || '').slice(0, 80))}</span>${(post.content || '').length > 80 ? '…' : ''}</td>
+        <td style="text-align:center; font-weight:600;">👁 ${fmt(post.views)}</td>
         <td style="text-align:center; font-weight:600; color:var(--orange);">⭐ ${fmt(post.likes)}</td>
         <td style="text-align:center; font-weight:600;">💬 ${fmt(post.replies)}</td>
         <td style="text-align:center; font-weight:600;">🔄 ${fmt(post.reposts)}</td>
@@ -466,6 +470,11 @@ export async function renderAnalyticsIndexBody(postsWithStats?: Array<{id: numbe
 
     <h2 style="margin-top:0;">📈 성과 요약</h2>
     <div class="grid">
+      <div class="card">
+        <div class="label">총 조회수</div>
+        <div class="num" style="color:#4a90e2;">${fmt(totalViews)}</div>
+        <div class="sub">평균 ${avgViews.toLocaleString()}회</div>
+      </div>
       <div class="card">
         <div class="label">총 좋아요</div>
         <div class="num" style="color:var(--orange);">${fmt(totalLikes)}</div>
@@ -485,7 +494,7 @@ export async function renderAnalyticsIndexBody(postsWithStats?: Array<{id: numbe
 
     <h2>📊 게시물별 성과</h2>
     <div class="card" style="padding:0; overflow-x:auto;">
-      <table><thead><tr><th>내용</th><th>⭐ 좋아요</th><th>💬 댓글</th><th>🔄 리포스트</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr><th>내용</th><th>👁 조회</th><th>⭐ 좋아요</th><th>💬 댓글</th><th>🔄 리포스트</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
     </div>`;
 }
 
@@ -502,7 +511,7 @@ export function renderAnalyticsDetailBody(
       </div>`;
   }
 
-  const stats = result.stats || { likes: null, replies: null, reposts: null };
+  const stats = result.stats || { likes: null, replies: null, reposts: null, views: null };
   const fmt = (n: number | null) => (n === null ? '?' : n.toLocaleString('ko-KR'));
 
   return `<div style="margin-bottom:12px;">${back}</div>
@@ -511,6 +520,7 @@ export function renderAnalyticsDetailBody(
       <div style="white-space:pre-wrap; font-size:.85rem;">${escapeHtml(post.content)}</div>
     </div>
     <div class="grid">
+      <div class="card"><div class="label">조회수</div><div class="num" style="color:#4a90e2;">${fmt(stats.views)}</div></div>
       <div class="card"><div class="label">좋아요</div><div class="num">${fmt(stats.likes)}</div></div>
       <div class="card"><div class="label">답글</div><div class="num">${fmt(stats.replies)}</div></div>
       <div class="card"><div class="label">리포스트</div><div class="num">${fmt(stats.reposts)}</div></div>

@@ -202,9 +202,9 @@ export function startDashboardServer() {
           if (postsWithStats.length > 0) {
             postsWithStats = await Promise.all(
               postsWithStats.map(async (post: any) => {
-                const result = await analyticsAgent.fetchStats(post.threads_post_id).catch(() => ({ success: false, stats: { likes: null, replies: null, reposts: null } }));
-                const stats = result.stats || { likes: null, replies: null, reposts: null };
-                return { ...post, likes: stats.likes, replies: stats.replies, reposts: stats.reposts };
+                const result = await analyticsAgent.fetchStats(post.threads_post_id).catch(() => ({ success: false, stats: { likes: null, replies: null, reposts: null, views: null } }));
+                const stats = result.stats || { likes: null, replies: null, reposts: null, views: null };
+                return { ...post, likes: stats.likes, replies: stats.replies, reposts: stats.reposts, views: stats.views };
               })
             );
           }
