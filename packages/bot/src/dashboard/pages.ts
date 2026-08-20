@@ -3,7 +3,7 @@ import { supabase, getPostedThreads } from '../../../shared/src/utils/supabase';
 import { escapeHtml, stubPage } from './layout';
 import { BotSettings } from './settings';
 import { FetchCommentsResult } from '../agents/comments.agent';
-import { FetchStatsResult, AnalyticsAgent } from '../agents/analytics.agent';
+import { FetchStatsResult } from '../agents/analytics.agent';
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -79,25 +79,6 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
 
   const hasSession = !!process.env.THREADS_SESSION_STATE;
 
-  // 실시간 성과 조회 (각 게시물의 실제 좋아요/댓글/리포스트)
-  let postsWithStats = recentPosts || [];
-  if (postsWithStats.length > 0 && hasSession) {
-    const analytics = new AnalyticsAgent();
-    const statsPromises = postsWithStats.map(async (post: any) => {
-      if (!post.threads_post_id) return { ...post, likes: null, replies: null, reposts: null };
-      const result = await analytics.fetchStats(post.threads_post_id).catch(() => ({ success: false }));
-      return {
-        ...post,
-        likes: result.success ? result.stats?.likes : null,
-        replies: result.success ? result.stats?.replies : null,
-        reposts: result.success ? result.stats?.reposts : null,
-      };
-    });
-    postsWithStats = await Promise.allSettled(statsPromises).then(results =>
-      results.map((r, i) => r.status === 'fulfilled' ? r.value : postsWithStats[i])
-    );
-  }
-
   const statusHtml = automationPaused
     ? `<div class="card" style="background:var(--warn-bg); border:1px solid #e6d9a8; padding:18px;">
          <div style="font-size:.75rem; font-weight:700; color:#8a6a1f; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:6px;">⚠️ 상태 알림</div>
@@ -126,7 +107,7 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
   const formatNumber = (n: number | null | undefined) =>
     n === null || n === undefined ? '—' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n.toString();
 
-  const postRows = (postsWithStats || [])
+  const postRows = (recentPosts || [])
     .map(
       (post: any) =>
         `<tr>
