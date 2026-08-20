@@ -7,7 +7,8 @@
   "dev": "npm run build && node dist/bot/src/index.js",
   "build": "tsc",
   "start": "node dist/bot/src/index.js",
-  "threads:login": "npm run build && node dist/bot/src/scripts/threads-login.js"
+  "threads:login": "npm run build && node dist/bot/src/scripts/threads-login.js",
+  "sync:views": "npm run build && node dist/bot/src/scripts/sync-all-views.js"
   },
   "keywords": [],
   "author": "",

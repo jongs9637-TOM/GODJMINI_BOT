@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { logActivity, getPostById, exportAllData } from '../../shared/src/utils/supabase';
+import { logActivity, getPostById, exportAllData, updatePostViews } from '../../shared/src/utils/supabase';
 import { renderShell, NavKey } from './dashboard/layout';
 import {
   renderDashboardBody,
@@ -193,6 +193,9 @@ export function startDashboardServer() {
             body = `<div class="card">해당 게시물을 찾을 수 없습니다. <a class="link" href="/analytics">목록으로</a></div>`;
           } else {
             const result = await analyticsAgent.fetchStats(post.threads_post_id);
+            if (result.success && result.stats?.views !== null) {
+              await updatePostViews(post.id, result.stats.views);
+            }
             body = renderAnalyticsDetailBody(post as any, result);
           }
         } else {
@@ -204,6 +207,9 @@ export function startDashboardServer() {
               postsWithStats.map(async (post: any) => {
                 const result = await analyticsAgent.fetchStats(post.threads_post_id).catch(() => ({ success: false, stats: { likes: null, replies: null, reposts: null, views: null } }));
                 const stats = result.stats || { likes: null, replies: null, reposts: null, views: null };
+                if (result.success && stats.views !== null) {
+                  await updatePostViews(post.id, stats.views);
+                }
                 return { ...post, likes: stats.likes, replies: stats.replies, reposts: stats.reposts, views: stats.views };
               })
             );

@@ -77,6 +77,23 @@ export async function getPostById(id: number) {
   return await supabase.from('threads_posts').select('id, content, threads_post_id').eq('id', id).maybeSingle();
 }
 
+export async function updatePostViews(id: number, views: number | null) {
+  return await supabase
+    .from('threads_posts')
+    .update({ views, updated_at: new Date().toISOString() })
+    .eq('id', id);
+}
+
+export async function getAllPostedThreads(limit = 100) {
+  return await supabase
+    .from('threads_posts')
+    .select('id, content, threads_post_id, created_at, views')
+    .eq('status', 'posted')
+    .not('threads_post_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+}
+
 export async function saveAnalytics(data: any) {
   return await supabase.from('daily_analytics').upsert(data);
 }
