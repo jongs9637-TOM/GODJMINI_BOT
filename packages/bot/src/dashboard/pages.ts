@@ -23,14 +23,16 @@ function statusBadge(status: string): string {
 export async function renderDashboardBody(automationPaused: boolean): Promise<string> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(startOfDay);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // 최적화: 필수 쿼리만 (7일 통계는 최근 8개만 사용)
   const [
     { count: todayCount },
     { count: totalCount },
     { count: postedToday },
     { count: failedToday },
     { data: recentPosts },
+    { data: recentStats },
     { data: activityLogs },
   ] = await Promise.all([
     supabase
@@ -51,9 +53,14 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
     supabase
       .from('threads_posts')
       .select('id, content, status, created_at, likes, replies, reposts')
-      .eq('status', 'posted')
       .order('created_at', { ascending: false })
       .limit(8),
+    supabase
+      .from('threads_posts')
+      .select('created_at, likes, replies, reposts')
+      .eq('status', 'posted')
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', { ascending: true }),
     supabase
       .from('activity_logs')
       .select('action, status, error_message, created_at')
@@ -71,11 +78,6 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
   }
 
   const hasSession = !!process.env.THREADS_SESSION_STATE;
-
-  // 최근 8개 게시물에서 7일 통계 계산
-  const totalLikes = (recentPosts || []).reduce((s, p: any) => s + (p.likes || 0), 0);
-  const totalReplies = (recentPosts || []).reduce((s, p: any) => s + (p.replies || 0), 0);
-  const totalReposts = (recentPosts || []).reduce((s, p: any) => s + (p.reposts || 0), 0);
 
   const statusHtml = automationPaused
     ? `<div class="card" style="background:var(--warn-bg); border:1px solid #e6d9a8; padding:18px;">
@@ -97,6 +99,10 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
            </div>
          </div>
        </div>`;
+
+  const totalLikes = (recentStats || []).reduce((s, p: any) => s + (p.likes || 0), 0);
+  const totalReplies = (recentStats || []).reduce((s, p: any) => s + (p.replies || 0), 0);
+  const totalReposts = (recentStats || []).reduce((s, p: any) => s + (p.reposts || 0), 0);
 
   const formatNumber = (n: number | null | undefined) =>
     n === null || n === undefined ? '0' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n.toString();
