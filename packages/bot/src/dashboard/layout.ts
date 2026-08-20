@@ -233,11 +233,11 @@ export function renderShell(
         <div class="sub">Dashboard</div>
       </div>
     </div>
-    <div style="flex:1;"></div>
-    <div class="nav-section" style="display:none;">
-      <div class="nav-section-label">Main</div>
+    <div class="nav-section">
+      <div class="nav-section-label">메뉴</div>
       ${navHtml}
     </div>
+    <div style="flex:1;"></div>
     <div class="sidebar-footer">
       <div class="dot"></div>
       <div>
