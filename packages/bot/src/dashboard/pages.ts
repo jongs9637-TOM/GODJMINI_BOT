@@ -52,7 +52,7 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
       .gte('created_at', startOfDay.toISOString()),
     supabase
       .from('threads_posts')
-      .select('id, content, status, created_at, likes, replies, reposts')
+      .select('id, content, status, created_at, likes, replies, reposts, threads_post_id')
       .order('created_at', { ascending: false })
       .limit(8),
     supabase
