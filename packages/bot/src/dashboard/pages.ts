@@ -285,6 +285,19 @@ export async function renderActivityBody(): Promise<string> {
   </div>`;
 }
 
+function formatDateToKR(dateStr: string): string {
+  const date = new Date(dateStr);
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  };
+  return date.toLocaleString('ko-KR', options);
+}
+
 export async function renderConnectionBody(): Promise<string> {
   const hasSession = !!process.env.THREADS_SESSION_STATE;
 
@@ -304,12 +317,24 @@ export async function renderConnectionBody(): Promise<string> {
     .limit(1)
     .maybeSingle();
 
-  return `<div class="card" style="background:${hasSession ? 'linear-gradient(135deg, var(--green-light-bg), rgba(31,107,58,0.1))' : 'linear-gradient(135deg, var(--danger-bg), rgba(241,128,128,0.1))}; border:1px solid ${hasSession ? 'var(--green-light-bg)' : 'var(--danger-bg)'}; padding:18px; margin-bottom:18px;">
+  const postedText = lastPosted ? formatDateToKR(lastPosted.created_at) : '아직 없음';
+  const failureHtml = lastFailed
+    ? `<div style="font-weight:600; margin-bottom:4px;">${formatDateToKR(lastFailed.created_at)}</div><div style="font-size:.75rem; color:var(--danger-text); line-height:1.4;">${escapeHtml((lastFailed.error_message || '').slice(0, 120))}</div>`
+    : '없음';
+
+  const cardBg = hasSession ? 'linear-gradient(135deg, var(--green-light-bg), rgba(31,107,58,0.1))' : 'linear-gradient(135deg, var(--danger-bg), rgba(241,128,128,0.1))';
+  const cardBorder = hasSession ? 'var(--green-light-bg)' : 'var(--danger-bg)';
+  const statusEmoji = hasSession ? '🟢' : '🔴';
+  const statusText = hasSession ? 'Threads 세션 연결됨' : 'Threads 세션 미연결';
+  const statusColor = hasSession ? 'var(--green-light-text)' : 'var(--danger-text)';
+  const readyText = hasSession ? '자동 게시 준비 완료' : '세션이 필요합니다';
+
+  return `<div class="card" style="background:${cardBg}; border:1px solid ${cardBorder}; padding:18px; margin-bottom:18px;">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-      <div style="font-size:1.4rem;">${hasSession ? '🟢' : '🔴'}</div>
+      <div style="font-size:1.4rem;">${statusEmoji}</div>
       <div>
-        <div style="font-weight:700; font-size:.95rem; color:${hasSession ? 'var(--green-light-text)' : 'var(--danger-text)'};">${hasSession ? 'Threads 세션 연결됨' : 'Threads 세션 미연결'}</div>
-        <div style="font-size:.75rem; color:var(--text-muted); margin-top:2px;">${hasSession ? '자동 게시 준비 완료' : '세션이 필요합니다'}</div>
+        <div style="font-weight:700; font-size:.95rem; color:${statusColor};">${statusText}</div>
+        <div style="font-size:.75rem; color:var(--text-muted); margin-top:2px;">${readyText}</div>
       </div>
     </div>
   </div>
@@ -331,17 +356,11 @@ export async function renderConnectionBody(): Promise<string> {
   <div class="grid">
     <div class="card">
       <div class="label">✅ 마지막 성공</div>
-      <div style="font-size:1rem; font-weight:600; color:var(--green-light-text); margin:6px 0;">${lastPosted ? new Date(lastPosted.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '아직 없음'}</div>
+      <div style="font-size:1rem; font-weight:600; color:var(--green-light-text); margin:6px 0;">${postedText}</div>
     </div>
     <div class="card">
       <div class="label">❌ 마지막 실패</div>
-      <div style="font-size:.85rem; color:var(--text); margin:6px 0;">
-        ${
-          lastFailed
-            ? `<div style="font-weight:600; margin-bottom:4px;">${new Date(lastFailed.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })}</div><div style="font-size:.75rem; color:var(--danger-text); line-height:1.4;">${escapeHtml((lastFailed.error_message || '').slice(0, 120))}</div>`
-            : '없음'
-        }
-      </div>
+      <div style="font-size:.85rem; color:var(--text); margin:6px 0;">${failureHtml}</div>
     </div>
   </div>`;
 }
