@@ -2,7 +2,6 @@ import * as dotenv from 'dotenv';
 import { CronTime } from 'cron';
 import { ContentAgent } from './agents/content.agent';
 import { PublisherAgent } from './agents/publisher.agent';
-import { CommentsAgent } from './agents/comments.agent';
 import { TelegramService } from './services/telegram.service';
 import { fetchMarketSummary } from './services/market.service';
 import {
@@ -11,7 +10,6 @@ import {
   savePost,
   updatePostStatus,
   logActivity,
-  updateMissingThreadsPostIds,
 } from '../../shared/src/utils/supabase';
 import { startDashboardServer } from './server';
 import { isAutomationPaused } from './dashboard/state';
@@ -189,20 +187,6 @@ async function main() {
     contentAgent = new ContentAgent(process.env.CLAUDE_API_KEY!);
     publisher = new PublisherAgent();
     console.log('✅ ContentAgent 준비 완료\n');
-
-    console.log('4️⃣-1️⃣ 과거 게시물 threads_post_id 자동 업데이트...');
-    try {
-      const commentsAgent = new CommentsAgent();
-      const posts = await commentsAgent.fetchPostsFromProfile(100);
-      if (posts.length > 0) {
-        await updateMissingThreadsPostIds(posts);
-      } else {
-        console.log('ℹ️ 프로필에서 게시물을 찾지 못했습니다.');
-      }
-    } catch (error) {
-      console.warn(`⚠️ 과거 게시물 업데이트 실패: ${error}`);
-    }
-    console.log('');
 
     telegram.onCommand('시황', handleMarketCommand);
     telegram.onCommand('상태', handleStatusCommand);

@@ -68,32 +68,55 @@ export class PublisherAgent {
     }
   }
 
-  // 게시 직후 새 글의 URL을 찾는다. 정확한 셀렉터가 검증되지 않은 상태라 여러 방법을 순서대로 시도한다.
+  // 게시 직후 새 글의 URL을 찾는다. 여러 방법을 순서대로 시도한다.
   private async resolvePostUrl(page: import('playwright').Page): Promise<string | undefined> {
+    // 방법 1: 현재 페이지 URL이 이미 /post/인 경우
     const currentUrl = page.url();
     if (/\/post\//.test(currentUrl)) {
+      console.log(`✅ postUrl 추출 (방법1): ${currentUrl}`);
       return currentUrl;
     }
 
     const username = process.env.THREADS_USERNAME;
-    if (!username) return undefined;
+    if (!username) {
+      console.warn('⚠️ THREADS_USERNAME 환경변수가 없습니다.');
+      return undefined;
+    }
 
     try {
+      // 방법 2: 프로필 페이지에서 첫 번째 링크 추출
       await page.waitForTimeout(2000);
       await page.goto(`https://www.threads.com/@${username}`, { waitUntil: 'networkidle', timeout: 30000 });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
-      const firstPostLink = page.locator('a[href*="/post/"]').first();
-      const href = await firstPostLink.getAttribute('href', { timeout: 10000 }).catch(() => null);
+      // 여러 셀렉터 시도
+      const selectors = [
+        'a[href*="/post/"]',
+        'a[href*="threads.com/"]',
+        '[data-testid*="post"] a',
+        'article a',
+      ];
 
-      if (!href) {
-        console.warn('⚠️ postUrl 추출 실패 - 프로필 페이지에서 게시물 링크를 찾을 수 없습니다.');
-        return undefined;
+      for (const selector of selectors) {
+        try {
+          const link = page.locator(selector).first();
+          const isVisible = await link.isVisible({ timeout: 2000 }).catch(() => false);
+
+          if (isVisible) {
+            const href = await link.getAttribute('href');
+            if (href && href.includes('/post/')) {
+              const fullUrl = href.startsWith('http') ? href : `https://www.threads.com${href}`;
+              console.log(`✅ postUrl 추출 (방법2-${selector}): ${fullUrl}`);
+              return fullUrl;
+            }
+          }
+        } catch (e) {
+          continue;
+        }
       }
 
-      const fullUrl = href.startsWith('http') ? href : `https://www.threads.com${href}`;
-      console.log(`✅ postUrl 추출 완료: ${fullUrl}`);
-      return fullUrl;
+      console.warn('⚠️ postUrl을 찾을 수 없습니다. 게시는 성공했지만 URL 추출 실패.');
+      return undefined;
     } catch (error) {
       console.warn(`⚠️ postUrl 추출 중 오류: ${error}`);
       return undefined;
