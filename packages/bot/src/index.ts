@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv';
 import { CronTime } from 'cron';
 import { ContentAgent } from './agents/content.agent';
 import { PublisherAgent } from './agents/publisher.agent';
+import { CommentsAgent } from './agents/comments.agent';
 import { TelegramService } from './services/telegram.service';
 import { fetchMarketSummary } from './services/market.service';
 import {
@@ -191,10 +192,12 @@ async function main() {
 
     console.log('4️⃣-1️⃣ 과거 게시물 threads_post_id 자동 업데이트...');
     try {
-      const commentsAgent = new (await import('./agents/comments.agent')).CommentsAgent();
+      const commentsAgent = new CommentsAgent();
       const posts = await commentsAgent.fetchPostsFromProfile(100);
       if (posts.length > 0) {
         await updateMissingThreadsPostIds(posts);
+      } else {
+        console.log('ℹ️ 프로필에서 게시물을 찾지 못했습니다.');
       }
     } catch (error) {
       console.warn(`⚠️ 과거 게시물 업데이트 실패: ${error}`);
