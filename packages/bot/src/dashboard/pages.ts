@@ -182,8 +182,13 @@ export async function renderConnectionBody(): Promise<string> {
   }</div>`;
 }
 
-export async function renderCommentsIndexBody(): Promise<string> {
-  const { data: posts } = await getPostedThreads(20);
+export async function renderCommentsIndexBody(postsWithCounts?: Array<{id: number; content: string; created_at: string; commentCount?: number | null}>): Promise<string> {
+  let posts = postsWithCounts;
+
+  if (!posts) {
+    const { data } = await getPostedThreads(20);
+    posts = data || [];
+  }
 
   if (!posts || posts.length === 0) {
     return stubPage(
@@ -197,14 +202,15 @@ export async function renderCommentsIndexBody(): Promise<string> {
     .map(
       (post: any) => `<tr>
         <td class="content-cell">${escapeHtml((post.content || '').slice(0, 80))}${(post.content || '').length > 80 ? '…' : ''}</td>
+        <td>${post.commentCount !== undefined ? post.commentCount : '?'}개</td>
         <td>${formatTime(post.created_at)}</td>
-        <td><a class="link" href="/comments?postId=${post.id}">댓글 보기</a></td>
+        <td><a class="link" href="/comments?postId=${post.id}">보기</a></td>
       </tr>`
     )
     .join('');
 
   return `<div class="card" style="padding:0; overflow:hidden;">
-    <table><thead><tr><th>내용</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>내용</th><th>댓글</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   </div>`;
 }
 
@@ -235,8 +241,13 @@ export function renderCommentsDetailBody(
     ${comments.length > 0 ? `<ul style="list-style:none; padding:0; margin:0;">${list}</ul>` : '<div class="empty">댓글이 없습니다</div>'}`;
 }
 
-export async function renderAnalyticsIndexBody(): Promise<string> {
-  const { data: posts } = await getPostedThreads(20);
+export async function renderAnalyticsIndexBody(postsWithStats?: Array<{id: number; content: string; created_at: string; likes?: number | null; replies?: number | null; reposts?: number | null}>): Promise<string> {
+  let posts = postsWithStats;
+
+  if (!posts) {
+    const { data } = await getPostedThreads(20);
+    posts = data || [];
+  }
 
   if (!posts || posts.length === 0) {
     return stubPage(
@@ -246,12 +257,17 @@ export async function renderAnalyticsIndexBody(): Promise<string> {
     );
   }
 
+  const fmt = (n: number | null | undefined) => (n === null || n === undefined ? '?' : n.toLocaleString('ko-KR'));
+
   const rows = posts
     .map(
       (post: any) => `<tr>
         <td class="content-cell">${escapeHtml((post.content || '').slice(0, 80))}${(post.content || '').length > 80 ? '…' : ''}</td>
+        <td>${fmt(post.likes)}</td>
+        <td>${fmt(post.replies)}</td>
+        <td>${fmt(post.reposts)}</td>
         <td>${formatTime(post.created_at)}</td>
-        <td><a class="link" href="/analytics?postId=${post.id}">통계 보기</a></td>
+        <td><a class="link" href="/analytics?postId=${post.id}">상세</a></td>
       </tr>`
     )
     .join('');
@@ -261,7 +277,7 @@ export async function renderAnalyticsIndexBody(): Promise<string> {
       ⚠️ Meta 공식 API가 아니라 화면을 읽어오는 방식이라 숫자가 부정확하거나 실패할 수 있습니다.
     </div>
     <div class="card" style="padding:0; overflow:hidden;">
-      <table><thead><tr><th>내용</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr><th>내용</th><th>좋아요</th><th>답글</th><th>리포스트</th><th>게시 시각</th><th></th></tr></thead><tbody>${rows}</tbody></table>
     </div>`;
 }
 

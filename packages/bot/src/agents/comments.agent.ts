@@ -26,6 +26,32 @@ export class CommentsAgent {
     );
   }
 
+  async fetchCommentCount(postUrl: string): Promise<number | null> {
+    let browser: import('playwright').Browser | undefined;
+
+    try {
+      const storageState = this.getSessionState();
+      browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext({ storageState });
+      const page = await context.newPage();
+
+      await page.goto(postUrl, { waitUntil: 'networkidle' });
+
+      const loginPrompt = page.getByText('로그인 또는 가입하기');
+      if (await loginPrompt.isVisible({ timeout: 5000 }).catch(() => false)) {
+        return null;
+      }
+
+      const articles = page.locator('article');
+      const count = await articles.count();
+      return Math.max(0, count - 1);
+    } catch (error) {
+      return null;
+    } finally {
+      await browser?.close();
+    }
+  }
+
   async fetchComments(postUrl: string): Promise<FetchCommentsResult> {
     let browser: import('playwright').Browser | undefined;
 

@@ -157,7 +157,19 @@ export function startDashboardServer() {
             body = renderCommentsDetailBody(post as any, result);
           }
         } else {
-          body = await renderCommentsIndexBody();
+          const { data: posts } = await (await import('../../shared/src/utils/supabase')).getPostedThreads(20);
+          let postsWithCounts = posts || [];
+
+          if (postsWithCounts.length > 0) {
+            postsWithCounts = await Promise.all(
+              postsWithCounts.map(async (post: any) => {
+                const count = await commentsAgent.fetchCommentCount(post.threads_post_id).catch(() => null);
+                return { ...post, commentCount: count };
+              })
+            );
+          }
+
+          body = await renderCommentsIndexBody(postsWithCounts);
         }
 
         const html = renderShell('comments', '댓글', '실제 게시물에 달린 댓글을 확인합니다 (읽기 전용).', body, isAutomationPaused());
@@ -184,7 +196,20 @@ export function startDashboardServer() {
             body = renderAnalyticsDetailBody(post as any, result);
           }
         } else {
-          body = await renderAnalyticsIndexBody();
+          const { data: posts } = await (await import('../../shared/src/utils/supabase')).getPostedThreads(20);
+          let postsWithStats = posts || [];
+
+          if (postsWithStats.length > 0) {
+            postsWithStats = await Promise.all(
+              postsWithStats.map(async (post: any) => {
+                const result = await analyticsAgent.fetchStats(post.threads_post_id).catch(() => ({ success: false, stats: { likes: null, replies: null, reposts: null } }));
+                const stats = result.stats || { likes: null, replies: null, reposts: null };
+                return { ...post, likes: stats.likes, replies: stats.replies, reposts: stats.reposts };
+              })
+            );
+          }
+
+          body = await renderAnalyticsIndexBody(postsWithStats);
         }
 
         const html = renderShell('analytics', '성과 분석', '게시물의 좋아요/답글/리포스트 수를 확인합니다.', body, isAutomationPaused());
