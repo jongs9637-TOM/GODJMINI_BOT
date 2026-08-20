@@ -13,14 +13,16 @@ async function syncAllViews() {
     let totalUpdated = 0;
 
     while (true) {
-      const { data: posts } = await getAllPostedThreads(limit);
+      const { data: posts } = await getAllPostedThreads(limit, offset);
 
       if (!posts || posts.length === 0) {
         console.log('📊 모든 게시물 처리 완료!\n');
         break;
       }
 
-      console.log(`📥 ${offset + 1}~${offset + posts.length}번 게시물 처리 중...\n`);
+      const rangeStart = offset + 1;
+      const rangeEnd = offset + posts.length;
+      console.log(`📥 [${rangeStart}~${rangeEnd}] ${posts.length}개 게시물 처리 중...\n`);
 
       for (let i = 0; i < posts.length; i++) {
         const post = posts[i];
@@ -30,9 +32,9 @@ async function syncAllViews() {
           if (result.success && result.stats?.views !== null) {
             await updatePostViews(post.id, result.stats.views);
             totalUpdated++;
-            console.log(`  ✅ [${post.id}] 조회수: ${result.stats.views.toLocaleString()}`);
+            console.log(`  ✅ [ID:${post.id}] 조회수: ${result.stats.views.toLocaleString()}`);
           } else {
-            console.log(`  ⚠️  [${post.id}] 조회수 조회 실패 - ${result.error}`);
+            console.log(`  ⚠️  [ID:${post.id}] 조회수 조회 실패 - ${result.error || '알 수 없는 오류'}`);
           }
 
           totalProcessed++;
@@ -41,13 +43,13 @@ async function syncAllViews() {
             await new Promise(resolve => setTimeout(resolve, 800));
           }
         } catch (error) {
-          console.error(`  ❌ [${post.id}] 오류:`, String(error).slice(0, 100));
+          console.error(`  ❌ [ID:${post.id}] 오류:`, String(error).slice(0, 80));
           totalProcessed++;
         }
       }
 
       offset += posts.length;
-      console.log(`\n진행률: ${totalProcessed}개 처리 (${totalUpdated}개 업데이트)\n`);
+      console.log(`\n📊 누적: ${totalProcessed}개 처리 (${totalUpdated}개 업데이트)\n`);
 
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
