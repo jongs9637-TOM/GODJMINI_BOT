@@ -3,7 +3,7 @@ import { supabase, getPostedThreads } from '../../../shared/src/utils/supabase';
 import { escapeHtml, stubPage } from './layout';
 import { BotSettings } from './settings';
 import { FetchCommentsResult } from '../agents/comments.agent';
-import { FetchStatsResult } from '../agents/analytics.agent';
+import { FetchStatsResult, AnalyticsAgent } from '../agents/analytics.agent';
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
@@ -79,6 +79,28 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
 
   const hasSession = !!process.env.THREADS_SESSION_STATE;
 
+  // 실시간 성과 + 조회수 조회 (각 게시물)
+  let postsWithStats = recentPosts || [];
+  if (postsWithStats.length > 0 && hasSession) {
+    const analytics = new AnalyticsAgent();
+    const statsPromises = postsWithStats.map(async (post: any) => {
+      if (!post.threads_post_id) return post;
+      try {
+        const result = await analytics.fetchStats(post.threads_post_id);
+        return {
+          ...post,
+          likes: result.success && result.stats ? result.stats.likes : post.likes,
+          replies: result.success && result.stats ? result.stats.replies : post.replies,
+          reposts: result.success && result.stats ? result.stats.reposts : post.reposts,
+          views: result.success && result.stats ? result.stats.views : null,
+        };
+      } catch {
+        return post;
+      }
+    });
+    postsWithStats = await Promise.all(statsPromises);
+  }
+
   const statusHtml = automationPaused
     ? `<div class="card" style="background:var(--warn-bg); border:1px solid #e6d9a8; padding:18px;">
          <div style="font-size:.75rem; font-weight:700; color:#8a6a1f; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:6px;">⚠️ 상태 알림</div>
@@ -107,11 +129,12 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
   const formatNumber = (n: number | null | undefined) =>
     n === null || n === undefined ? '—' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n.toString();
 
-  const postRows = (recentPosts || [])
+  const postRows = (postsWithStats || [])
     .map(
       (post: any) =>
         `<tr>
           <td class="content-cell">${escapeHtml((post.content || '').slice(0, 60))}${(post.content || '').length > 60 ? '…' : ''}</td>
+          <td style="text-align:center; font-weight:600; color:var(--orange);">👁 ${formatNumber(post.views)}</td>
           <td style="text-align:center; font-weight:600; color:var(--orange);">⭐ ${formatNumber(post.likes)}</td>
           <td style="text-align:center; font-weight:600;">💬 ${formatNumber(post.replies)}</td>
           <td style="text-align:center; font-weight:600;">🔄 ${formatNumber(post.reposts)}</td>
@@ -173,7 +196,7 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
     <div class="card" style="padding:0; overflow-x:auto;">
       ${
         postRows
-          ? `<table><thead><tr><th>내용</th><th>⭐</th><th>💬</th><th>🔄</th><th>상태</th><th>시간</th><th></th></tr></thead><tbody>${postRows}</tbody></table>`
+          ? `<table><thead><tr><th>내용</th><th>👁 조회</th><th>⭐ 좋아요</th><th>💬 댓글</th><th>🔄 리포스트</th><th>상태</th><th>시간</th><th></th></tr></thead><tbody>${postRows}</tbody></table>`
           : '<div class="empty">아직 게시물이 없습니다</div>'
       }
     </div>

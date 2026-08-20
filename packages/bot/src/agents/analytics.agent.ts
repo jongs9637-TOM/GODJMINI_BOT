@@ -8,6 +8,7 @@ export interface PostStats {
   likes: number | null;
   replies: number | null;
   reposts: number | null;
+  views: number | null;
 }
 
 export interface FetchStatsResult {
@@ -73,12 +74,20 @@ export class AnalyticsAgent {
         .getAttribute('aria-label')
         .catch(() => null);
 
+      const viewsText = await page
+        .locator('text=/조회수|views/i')
+        .first()
+        .textContent()
+        .catch(() => null);
+      const views = viewsText ? this.parseCount(viewsText) : null;
+
       return {
         success: true,
         stats: {
           likes: this.parseCount(likeLabel),
           replies: this.parseCount(replyLabel),
           reposts: this.parseCount(repostLabel),
+          views,
         },
       };
     } catch (error) {
