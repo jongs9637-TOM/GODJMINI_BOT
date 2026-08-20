@@ -38,7 +38,7 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
         .select('*', { count: 'exact', head: true })
         .eq('status', 'failed')
         .gte('created_at', startOfDay.toISOString()),
-      supabase.from('threads_posts').select('content, status, created_at').order('created_at', { ascending: false }).limit(10),
+      supabase.from('threads_posts').select('id, content, status, created_at').order('created_at', { ascending: false }).limit(10),
     ]);
 
   let nextRun = '알 수 없음';
@@ -67,7 +67,15 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
   const rows = (recentPosts || [])
     .map(
       (post: any) =>
-        `<tr><td class="content-cell">${escapeHtml((post.content || '').slice(0, 80))}${(post.content || '').length > 80 ? '…' : ''}</td><td>${statusBadge(post.status)}</td><td>${formatTime(post.created_at)}</td></tr>`
+        `<tr>
+          <td class="content-cell">${escapeHtml((post.content || '').slice(0, 80))}${(post.content || '').length > 80 ? '…' : ''}</td>
+          <td style="text-align:center; font-size:.75rem;">-</td>
+          <td style="text-align:center; font-size:.75rem;">-</td>
+          <td style="text-align:center; font-size:.75rem;">-</td>
+          <td>${statusBadge(post.status)}</td>
+          <td>${formatTime(post.created_at)}</td>
+          <td><a class="link" href="/analytics?postId=${post.id}" style="font-size:.75rem;">상세</a></td>
+        </tr>`
     )
     .join('');
 
@@ -79,13 +87,31 @@ export async function renderDashboardBody(automationPaused: boolean): Promise<st
       <div class="card"><div class="label">오늘 게시 완료</div><div class="num">${postedToday ?? 0}</div><div class="sub">실패 ${failedToday ?? 0}개</div></div>
       <div class="card"><div class="label">다음 게시 예정</div><div class="num" style="font-size:1.1rem;">${nextRun}</div><div class="sub">${escapeHtml(process.env.CONTENT_CRON_SCHEDULE || '0 9,14,20 * * *')}</div></div>
     </div>
-    <h2>최근 게시물</h2>
+    <h2>최근 게시물 · 실시간 성과</h2>
     <div class="card" style="padding:0; overflow:hidden;">
       ${
         rows
-          ? `<table><thead><tr><th>내용</th><th>상태</th><th>시간</th></tr></thead><tbody>${rows}</tbody></table>`
+          ? `<table><thead><tr><th>내용</th><th style="text-align:center;">좋아요</th><th style="text-align:center;">댓글</th><th style="text-align:center;">리포스트</th><th>상태</th><th>시간</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
           : '<div class="empty">아직 생성된 콘텐츠가 없습니다</div>'
       }
+    </div>
+    <h2>빠른 액션</h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+      <div class="card" style="text-align:center; padding:16px; cursor:pointer;" onclick="window.location='/content'">
+        <div style="font-size:1.4rem; margin-bottom:8px;">📝</div>
+        <div style="font-size:.8rem; font-weight:600;">콘텐츠 관리</div>
+        <div style="font-size:.7rem; color:var(--text-muted); margin-top:4px;">최근 생성물 보기</div>
+      </div>
+      <div class="card" style="text-align:center; padding:16px; cursor:pointer;" onclick="window.location='/comments'">
+        <div style="font-size:1.4rem; margin-bottom:8px;">💬</div>
+        <div style="font-size:.8rem; font-weight:600;">댓글 분석</div>
+        <div style="font-size:.7rem; color:var(--text-muted); margin-top:4px;">게시물 댓글 보기</div>
+      </div>
+      <div class="card" style="text-align:center; padding:16px; cursor:pointer;" onclick="window.location='/analytics'">
+        <div style="font-size:1.4rem; margin-bottom:8px;">📊</div>
+        <div style="font-size:.8rem; font-weight:600;">성과 분석</div>
+        <div style="font-size:.7rem; color:var(--text-muted); margin-top:4px;">좋아요/답글 통계</div>
+      </div>
     </div>`;
 }
 
