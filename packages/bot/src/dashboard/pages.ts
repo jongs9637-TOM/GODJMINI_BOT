@@ -338,10 +338,7 @@ export async function renderConnectionBody(): Promise<string> {
       <div style="font-size:.85rem; color:var(--text); margin:6px 0;">
         ${
           lastFailed
-            ? `
-              <div style="font-weight:600; margin-bottom:4px;">${new Date(lastFailed.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })}</div>
-              <div style="font-size:.75rem; color:var(--danger-text); line-height:1.4;">${escapeHtml((lastFailed.error_message || '').slice(0, 120))}</div>
-            `
+            ? `<div style="font-weight:600; margin-bottom:4px;">${new Date(lastFailed.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })}</div><div style="font-size:.75rem; color:var(--danger-text); line-height:1.4;">${escapeHtml((lastFailed.error_message || '').slice(0, 120))}</div>`
             : '없음'
         }
       </div>
